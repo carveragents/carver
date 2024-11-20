@@ -1,0 +1,6 @@
+feedparser>=6.0.10
+python-dotenv>=1.0.0
+click>=8.1.7
+rich>=13.3.5
+openai>=1.52.2
+tiktoken==0.8.0
