@@ -1,6 +1,19 @@
 # Carver SDK
 
-SDK to help build ecosystem intelligence by acquiring, analyzing, and applying content from variety of sources including YouTube, Reddit etc
+SDK to help build ecosystem intelligence by acquiring, analyzing, and
+applying content from variety of sources including YouTube, Reddit etc
+
+![Carver GitHub URL](images/carver-github.png "Github URL")
+
+## Usecase
+
+Most products die not because of lack of smart people but it doesnt
+fit the customer's ever evolving needs. With AI, this will become 10x
+harder because customer preferences, new products, and new competitors
+are emering at 10x speed. There is a need to understand and engage
+customers _now_ - not 3 or 6 months from now. There is no source or
+recipe for this. This SDK will help streamline the feed processing
+with the specific intent of 
 
 ## Installation
 
