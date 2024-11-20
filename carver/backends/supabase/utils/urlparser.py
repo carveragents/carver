@@ -1,13 +1,17 @@
+import traceback
 import re
-from urllib.parse import urlparse, parse_qs
-import requests
-from typing import Dict, Optional, Tuple
-import feedparser
 import json
-from pytube import YouTube, Playlist, Channel
+import logging
+
+from urllib.parse import urlparse, parse_qs
+from typing import Dict, Optional, Tuple
 import xml.etree.ElementTree as ET
 from datetime import datetime
-import logging
+
+import requests
+import feedparser
+
+from pytube import YouTube, Playlist, Channel
 
 logger = logging.getLogger(__name__)
 
@@ -114,16 +118,25 @@ class SourceURLParser:
 
                 playlist = Playlist(playlist_url)
 
+                try:
+                    title = playlist.title
+                except:
+                    title = "Playlist {playlist_id}"
+
+                try:
+                    description = playlist.description
+                except:
+                    description = ""
+
                 # Sometimes playlist title might not be immediately available
                 # In such cases, try to fetch it from the first video
-                title = playlist.title
-                description = playlist.description
                 if not title and playlist.video_urls:
                     try:
                         first_video = YouTube(playlist.video_urls[0])
                         title = first_video.playlist_title or f"Playlist: {playlist_id}"
                         description = first_video.playlist_description or ""
                     except Exception as e:
+                        traceback.print_exc()
                         logger.warning(f"Error fetching playlist details from video: {str(e)}")
                         title = f"Playlist: {playlist_id}"
                         description = ""
@@ -147,6 +160,7 @@ class SourceURLParser:
                     }
                 }
             except Exception as e:
+                traceback.print_exc()
                 logger.error(f"YouTube playlist parsing error: {str(e)}")
                 return None
 
