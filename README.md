@@ -188,6 +188,12 @@ For issues and feature requests, please create an issue in the GitHub repository
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
+## Sponsor
+
+Carver Agents, Inc.
+
+Others are welcome! We see broad application of this SDK beyond what Carver Agents intends to build.
+
 ## Note
 
 This tool is meant for personal use and should be used in accordance with YouTube's terms of service and content policies.
