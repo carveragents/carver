@@ -8,14 +8,15 @@ This is designed to be used as a 'tool' with LLMs.
 
 ## Usecase
 
-Most products die not because of lack of smart people but it doesnt
-fit the customer's ever evolving needs. With AI, this will become 10x
-harder because customer preferences, new products, and new competitors
-are emering at 10x speed. There is a need to understand and engage
-customers _now_ - not 3 or 6 months from now. There is no single
-source or recipe for this. This SDK will help streamline the feed
-processing with the specific intent of building this intelligence and
-for integration with LLMs both on the input side and output side. 
+Most products - opensource or commercial - die not because of lack of
+smart people but it doesnt fit the customer's ever evolving
+needs. With AI, this will become 10x harder because customer/user
+preferences, new products, and new competitors/options are emering at
+10x speed. There is a need to understand and engage customers/users
+_now_ - not 3 or 6 months from now. There is no single source or
+recipe for this. This SDK will help streamline the feed processing
+with the specific intent of building this intelligence and for
+integration with LLMs both on the input side and output side.
 
 ## Installation
 
