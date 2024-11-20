@@ -190,7 +190,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Sponsor
 
-Carver Agents, Inc.
+[Carver Agents, Inc.](https://carveragents.ai)
 
 Others are welcome! We see broad application of this SDK beyond what Carver Agents intends to build.
 
