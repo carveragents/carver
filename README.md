@@ -22,7 +22,7 @@ integration with LLMs both on the input side and output side.
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/pingali/carver.git
+git clone https://github.com/carver-agents/carver.git
 cd carver
 ```
 
