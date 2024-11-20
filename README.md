@@ -186,7 +186,7 @@ For issues and feature requests, please create an issue in the GitHub repository
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+See the LICENSE file for details.
 
 ## Sponsor
 

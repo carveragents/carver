@@ -13,19 +13,10 @@ from .base import BaseArtifactGenerator
 class TranscriptionGenerator(BaseArtifactGenerator):
     """Generates transcription artifacts from audio/video"""
     name = "transcription"
-
-    def validate_config(self, source: Dict[str, Any],
-                        config: Dict[str, Any]) -> bool:
-
-        if source['platform'] not in ['YOUTUBE', 'PODCAST']:
-            raise ValueError(f"Unsupported platform for this generator: {source['platform']}")
-
-        if source['source_type'] not in ['FEED', 'PLAYLIST', 'CHANNEL']:
-            raise ValueError(f"Unsupported platform for this generator: {source['source_type']}")
-
-
-        required = {'languages'}
-        return all(k in config for k in required)
+    description = "Extracts and processes transcriptions from audio/video content"
+    supported_platforms = ['YOUTUBE', 'PODCAST']
+    supported_source_types = ['FEED', 'PLAYLIST', 'CHANNEL']
+    required_config = ['languages']
 
     def get_transcripts(self, youtube_id, languages=['en', 'en-GB']) -> Dict[str, Any]:
         """

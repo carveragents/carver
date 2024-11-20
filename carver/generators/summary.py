@@ -11,6 +11,10 @@ from .base import BaseArtifactGenerator
 class SummaryGenerator(BaseArtifactGenerator):
     """Generates summary artifacts from content"""
     name = "summary"
+    description = "Summarizes a transcript"
+    supported_platforms = ["*"]
+    supported_source_types = ["*"]
+    required_config = ['languages', "prompt"]
 
     def validate_config(self, source: Dict[str, Any], config: Dict[str, Any]) -> bool:
         required = {'max_length', 'style', 'language'}

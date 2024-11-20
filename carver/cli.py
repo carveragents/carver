@@ -3,7 +3,8 @@ import sys
 
 import click
 
-from .backends import sb
+from .backends.supabase.cli import sb
+from .generators.cli import generator
 
 @click.group()
 @click.pass_context
@@ -14,6 +15,7 @@ def cli(ctx):
 
 # Register sub-commands
 cli.add_command(sb)
+cli.add_command(generator)
 
 if __name__ == '__main__':
     cli()

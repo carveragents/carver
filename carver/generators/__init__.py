@@ -1,9 +1,9 @@
 import os
 import sys
 import json
+import traceback
 
 from .base import BaseArtifactGenerator
-
 from .thread import ThreadGenerator
 from .summary import SummaryGenerator
 from .transcription import TranscriptionGenerator
@@ -19,3 +19,4 @@ class ArtifactGeneratorFactory:
                 return cls()
 
         raise ValueError(f"No generator found for generator: {name}")
+

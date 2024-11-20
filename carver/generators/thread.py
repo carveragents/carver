@@ -10,14 +10,12 @@ from .base import BaseArtifactGenerator
 
 class ThreadGenerator(BaseArtifactGenerator):
     """Generates thread artifacts from discussions"""
+
     name = "thread"
-
-    def validate_config(self, source: Dict[str, Any], config: Dict[str, Any]) -> bool:
-
-        assert source['platform'] in ['TWITTER', 'X']
-
-        required = {'style', 'language', 'thread_depth'}
-        return all(k in config for k in required)
+    description = "Generate Twitter/X thread"
+    supported_platforms = ['*']
+    supported_source_types = ['*']
+    required_config = ['languages', "prompt"]
 
     def generate(self, item: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
         # Implement thread generation
