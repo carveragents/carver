@@ -328,7 +328,9 @@ def bulk_generate(ctx, spec_id: int, source_id: int, last: Optional[str], genera
             click.echo("Specify one of spec_id or source_id", err=True)
             return
 
-        specs = db.specification_search(source_id=source_id, spec_id=spec_id, active=True)
+        specs = db.specification_search(source_id=source_id,
+                                        spec_id=spec_id,
+                                        active=True)
         if not specs:
             click.echo(f"No active specifications found")
             return
@@ -340,15 +342,15 @@ def bulk_generate(ctx, spec_id: int, source_id: int, last: Optional[str], genera
         time_filter = parse_date_filter(last) if last else None
         items = db.item_search_with_artifacts(
             source_id=source_id,
-            generator_name=generator_name,
-            modified_after=time_filter
+            modified_after=time_filter,
+            limit=1000,
         )
 
         if not items:
             click.echo("No items found requiring artifact generation")
             return
 
-        click.echo(f"Found {len(items)} items requiring artifact generation")
+        click.echo(f"Found {len(items)} items to process for artifact generation")
 
         # Process each specification
         for spec in specs:
@@ -373,6 +375,8 @@ def bulk_generate(ctx, spec_id: int, source_id: int, last: Optional[str], genera
 @click.option('--artifact-type', help='Filter by artifact type')
 @click.option('--status', help='Filter by status')
 @click.option('--active/--inactive', default=None, help='Filter by active status')
+@click.option('--offset', default=0, type=int, help='Offset for search results')
+@click.option('--limit', default=50, type=int, help='Maximum number of items to fetch')
 @click.option('--format', 'output_format',
               type=click.Choice(['table', 'grid', 'pipe', 'orgtbl', 'rst', 'mediawiki', 'html']),
               default='table',
@@ -380,6 +384,7 @@ def bulk_generate(ctx, spec_id: int, source_id: int, last: Optional[str], genera
 @click.pass_context
 def search(ctx, spec_id: Optional[int], item_id: Optional[int],
            artifact_type: Optional[str], status: Optional[str],
+           offset: int, limit: int,
            active: Optional[bool], output_format: str):
     """Search artifacts."""
     db = ctx.obj['supabase']
@@ -389,18 +394,23 @@ def search(ctx, spec_id: Optional[int], item_id: Optional[int],
             item_id=item_id,
             artifact_type=artifact_type,
             status=status,
-            active=active
+            active=active,
+            offset=offset,
+            limit=limit
         )
 
         if artifacts:
-            headers = ['ID', 'Type', "Generator", "GenID", 'Title', 'Status', 'Version', 'Active', 'Created']
+            click.echo("Notes: V=version, A=Active, Type=Artifact Type")
+            headers = ['ID', 'SourceID', "ItemID", 'Type', "Generator:ID",
+                       'Title', 'Status', 'V', 'A', 'Created']
             rows = []
             for art in artifacts:
                 rows.append([
                     art['id'],
+                    art['carver_artifact_specification']['name'],
+                    art['item_id'],
                     art['artifact_type'],
-                    art['generator_name'],
-                    art['generator_id'],
+                    art['generator_name'] + ":" + art['generator_id'],
                     art['title'][:30] + ('...' if len(art['title']) > 30 else ''),
                     art['status'],
                     art['version'],

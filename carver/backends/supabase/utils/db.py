@@ -386,10 +386,10 @@ class SupabaseClient:
             raise
 
     def item_search_with_artifacts(self,
-                                 source_id: int,
-                                 generator_name: str,
-                                 modified_after: Optional[datetime] = None,
-                                 limit: int = 1000) -> Dict[int, Dict]:
+                                   source_id: int,
+                                   generator_name: Optional[str] = None,
+                                   modified_after: Optional[datetime] = None,
+                                   limit: int = 10) -> Dict[int, Dict]:
         """
         Find items with their artifacts for a specific generator
         Returns a map of item_id -> {item: item_data, artifacts: [artifact_data]}
@@ -407,19 +407,18 @@ class SupabaseClient:
             items = items.limit(limit).execute()
             items = items.data
 
-            print("Items found", len(items))
             if len(items) == 0:
                 return []
 
             item_ids = [i['id'] for i in items]
-            artifacts = self.client.table('carver_artifact') \
-                                   .select('*') \
-                                   .in_('item_id', item_ids) \
-                                   .eq('generator_name', generator_name) \
-                                   .eq('active', True) \
-                                   .execute()
+            query = self.client.table('carver_artifact') \
+                               .select('*') \
+                               .in_('item_id', item_ids) \
+                               .eq('active', True)
+            if generator_name:
+                query = query.eq('generator_name', generator_name)
 
-            print("Artifacts", len(artifacts.data))
+            artifacts = query.execute()
             for item in items:
                 item_artifacts = [a for a in artifacts.data if a['item_id'] == item['id']]
                 item['artifacts'] = item_artifacts
@@ -432,18 +431,20 @@ class SupabaseClient:
 
     def item_search_without_artifacts(self,
                                       source_id: int,
-                                      generator_name: str,
+                                      generator_name: Optional[str] = None,
                                       modified_after: Optional[datetime] = None,
                                       limit: int = 1000) -> List[Dict[str, Any]]:
 
         """Find items without artifacts for a specific generator"""
         try:
-            items_with_artifacts = self.client.table('carver_artifact') \
-                                              .select('item_id, carver_item!inner(source_id)') \
-                                              .eq('generator_name', generator_name) \
-                                              .eq('active', True) \
-                                              .eq('carver_item.source_id', source_id) \
-                                              .execute()
+            query = self.client.table('carver_artifact') \
+                               .select('item_id, carver_item!inner(source_id)')\
+                               .eq('active', True) \
+                               .eq('carver_item.source_id', source_id)
+            if generator_name:
+                query = query.eq('generator_name', generator_name)
+
+            items_with_artifacts = query.execute()
 
             item_ids_with_artifacts = [item['item_id'] for item in items_with_artifacts.data]
 

@@ -81,12 +81,9 @@ class ArtifactManager:
             try:
 
                 existing_artifacts = item['artifacts']
-
                 item_id = item['id']
-                print("Bulk generate for", item['id'], item['content_identifier'])
                 artifacts_data = generator.generate(item, spec['config'], existing_artifacts)
 
-                print("Generated", len(artifacts_data), "artifacts for", item_id)
                 if isinstance(artifacts_data, dict):
                     artifacts_data = [artifacts_data]
 
@@ -116,7 +113,6 @@ class ArtifactManager:
                 errors.append(f"Error processing item {item_id}: {str(e)}")
                 continue
 
-        print("To create artifacts", len(artifacts_to_create))
         created = self.db.artifact_bulk_create(artifacts_to_create)
 
         if errors:
