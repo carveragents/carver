@@ -54,7 +54,7 @@ class TranscriptionGenerator(BaseArtifactGenerator):
 
     def generate(self, item: Dict[str, Any], config: Dict[str, Any], existing: List[Dict[str, Any]]) -> Dict[str, Any]:
 
-        print("[{self.name}] Generating for", item['content_identifier'])
+        print(f"[{self.name}] Generating for", item['content_identifier'])
         videoid = item['content_identifier']
         languages = config.get('languages', ['en', 'en-GB'])
 

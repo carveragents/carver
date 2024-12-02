@@ -1,12 +1,16 @@
 import os
 import sys
 import json
+import traceback
 import logging
 
 from typing import List, Dict, Any, Optional, Union
 from datetime import datetime
 
+from carver.utils import flatten
+
 from .base import BaseArtifactGenerator
+from .llm import *
 
 logger = logging.getLogger(__name__)
 
@@ -91,18 +95,18 @@ class SummaryGenerator(BaseArtifactGenerator):
             if ((artifact['generator_name'] == "transcription") and
                 (artifact['generator_id'] in ['en', 'en-GB'])):
                 transcript = artifact['content']
-        if transcript is None:
+        if transcript is None or len(transcript) == 0:
             logger.info(f"No transcript was found: ('transcript', 'en')")
             return []
 
 
-        prefix = """\
+        system_prompt = """\
 You are an expert analyst of complex topics. The following is a set
 of different outputs that you must generate based on the instructions
 
 """
         output = {}
-
+        promptmap = {}
         # => Now generate the configurations
         # Process each prompt configuration
         for prompt_config in config['prompts']:
@@ -114,36 +118,38 @@ of different outputs that you must generate based on the instructions
                 continue
 
             prompt = prompt_config['prompt']
-            generator_id    = prompt_config['generator_id']
-            prefix += f"{generator_id}\n-----\n{prompt}\n\n"
+            promptmap[generator_id] = prompt
+
+            system_prompt += f"{generator_id}\n-----\n{prompt}\n\n"
             output[generator_id] = "summary as instructed above"
 
         if len(output) == 0:
             logger.info(f"Nothing to do")
             return []
 
-        complete_prompt = prefix
-        complete_prompt += "Deliver the output in JSON format: \n" + json.dumps(output, indent=4)
-        complete_prompt += "\n\nHere is the content to summarize:\n------\n"
-
-        complete_prompt += transcript
+        system_prompt += "Deliver the output in JSON format: \n" + json.dumps(output, indent=4)
+        system_prompt += "\n\nHere is the content to summarize:\n------\n"
 
         new_artifacts = []
+        artifact_type = "SUMMARY"
 
         try:
+
             summarydict = self._generate_summary(
-                prompt=complete_prompt,
-                output=output
+                system_prompt=system_prompt,
+                user_prompt=transcript,
             )
 
             for generator_id, summary in summarydict.items():
-                artifact_type = "SUMMARY"
+
+                summary = flatten(summary)
+
                 metadata = {
                     'source_length': len(transcript),
                     'summary_length': len(summary),
                     'compression_ratio': len(summary) / len(transcript),
                     'generated_at': datetime.utcnow().isoformat(),
-                    'prompt_used': prompt_config['prompt']
+                    'prompt_used': promptmap[generator_id]
                 }
 
                 artifact = {
@@ -176,7 +182,7 @@ of different outputs that you must generate based on the instructions
         )
         return found
 
-    def _generate_summary(self, prompt: str, output: Dict[str, Any]) -> str:
+    def _generate_summary(self, system_prompt: str, user_prompt: str):
         """
         Generate a summary using the specified prompt.
 
@@ -184,6 +190,8 @@ of different outputs that you must generate based on the instructions
         with an LLM API or other summarization service.
         """
 
-        for generator_id in list(output.keys()):
-            output[generator_id] = f"Summary generated using prompt: lakalakalaka"
-        return output
+        try:
+            return run_llm_summarize(system_prompt, user_prompt)
+        except:
+            logger.exception("Unable to summarize")
+            raise Exception("Failed to summarize")

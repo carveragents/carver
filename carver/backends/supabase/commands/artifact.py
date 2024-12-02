@@ -317,8 +317,10 @@ def generate(ctx, spec_id: int, items: str, generator_name: str):
 @click.option('--source-id', required=False, type=int, help='Source ID')
 @click.option('--last', type=str, help='Filter items by time (e.g. "1d", "2h", "30m")')
 @click.option('--generator-name', required=False, help='Generator name to use')
+@click.option('--offset', default=0, type=int, help='Offset for search results')
+@click.option('--limit', default=50, type=int, help='Maximum number of items to fetch')
 @click.pass_context
-def bulk_generate(ctx, spec_id: int, source_id: int, last: Optional[str], generator_name: str):
+def bulk_generate(ctx, spec_id: int, source_id: int, last: Optional[str], generator_name: str, offset: int, limit: int):
     """Bulk generate artifacts for items from a source that don't have active artifacts."""
     manager = ctx.obj['manager']
     db = ctx.obj['supabase']
@@ -343,7 +345,8 @@ def bulk_generate(ctx, spec_id: int, source_id: int, last: Optional[str], genera
         items = db.item_search_with_artifacts(
             source_id=source_id,
             modified_after=time_filter,
-            limit=1000,
+            limit=limit,
+            offset=offset,
         )
 
         if not items:
@@ -360,7 +363,7 @@ def bulk_generate(ctx, spec_id: int, source_id: int, last: Optional[str], genera
 
             try:
                 results = manager.artifact_bulk_create_from_spec(spec, items, generator_name)
-                click.echo(f"Generated {len(results)} artifacts using specification {spec['id']}")
+                click.echo(f"Successfully generated {len(results)} artifacts using specification {spec['id']}")
             except Exception as e:
                 traceback.print_exc()
                 click.echo(f"Error generating artifacts for spec {spec['id']}: {str(e)}", err=True)
@@ -376,53 +379,115 @@ def bulk_generate(ctx, spec_id: int, source_id: int, last: Optional[str], genera
 @click.option('--artifact-type', help='Filter by artifact type')
 @click.option('--status', help='Filter by status')
 @click.option('--active/--inactive', default=None, help='Filter by active status')
+@click.option('--last', type=str, help='Filter by time window (e.g. "1d", "2h", "30m")')
 @click.option('--offset', default=0, type=int, help='Offset for search results')
 @click.option('--limit', default=50, type=int, help='Maximum number of items to fetch')
 @click.option('--format', 'output_format',
               type=click.Choice(['table', 'grid', 'pipe', 'orgtbl', 'rst', 'mediawiki', 'html']),
               default='table',
-              help='Output format')
+              help='Output format for display')
+@click.option('--dump', 'dump_format',
+              type=click.Choice(['text', 'csv', 'json']),
+              help='Dump results to file in specified format')
+@click.option('--output', '-o', type=click.Path(), help='Output file path for dump')
 @click.pass_context
 def search(ctx, spec_id: Optional[int], item_id: Optional[int],
            artifact_type: Optional[str], status: Optional[str],
-           offset: int, limit: int,
-           active: Optional[bool], output_format: str):
-    """Search artifacts."""
+           last: Optional[str], offset: int, limit: int,
+           active: Optional[bool], output_format: str,
+           dump_format: Optional[str], output: Optional[str]):
+    """Search artifacts with optional data dump."""
     db = ctx.obj['supabase']
     try:
+        # Parse time window if provided
+        time_filter = parse_date_filter(last) if last else None
+
         artifacts = db.artifact_search(
             spec_id=spec_id,
             item_id=item_id,
             artifact_type=artifact_type,
             status=status,
             active=active,
+            modified_after=time_filter,
             offset=offset,
             limit=limit
         )
 
-        if artifacts:
-            click.echo("Notes: V=version, A=Active, Type=Artifact Type")
-            headers = ['ID', 'SourceID', "ItemID", 'Type', "Generator:ID",
-                       'Title', 'Status', 'V', 'A', 'Created']
-            rows = []
-            for art in artifacts:
-                rows.append([
-                    art['id'],
-                    art['carver_artifact_specification']['name'],
-                    art['item_id'],
-                    art['artifact_type'],
-                    art['generator_name'] + ":" + art['generator_id'],
-                    art['title'][:30] + ('...' if len(art['title']) > 30 else ''),
-                    art['status'],
-                    art['version'],
-                    '✓' if art['active'] else '✗',
-                    format_datetime(art['created_at'])
-                ])
-
-            click.echo(tabulate(rows, headers=headers, tablefmt=output_format))
-            click.echo(f"\nTotal artifacts: {len(artifacts)}")
-        else:
+        if not artifacts:
             click.echo("No artifacts found")
+            return
+
+        # Prepare data for display and dump
+        rows = []
+        for art in artifacts:
+            row = {
+                'id': art['id'],
+                'specification': art['carver_artifact_specification']['name'],
+                'item_id': art['item_id'],
+                'item_name': art['carver_item']['name'],
+                'item_decription': art['carver_item']['description'],
+                'item_url': art['carver_item']['url'],
+                'artifact_type': art['artifact_type'],
+                'generator': f"{art['generator_name']}:{art['generator_id']}",
+                'title': art['title'],
+                'content': art['content'],
+                'status': art['status'],
+                'version': art['version'],
+                'active': art['active'],
+                'created_at': format_datetime(art['created_at'])
+            }
+            rows.append(row)
+
+        # Display results in table format
+        if not dump_format:
+            click.echo("Notes: V=version, A=Active, Type=Artifact Type")
+            table_rows = [[
+                r['id'],
+                r['specification'],
+                r['item_id'],
+                r['artifact_type'],
+                r['generator'],
+                r['title'][:30] + ('...' if len(r['title']) > 30 else ''),
+                r['status'],
+                r['version'],
+                '✓' if r['active'] else '✗',
+                r['created_at']
+            ] for r in rows]
+
+            headers = ['ID', 'Spec', "ItemID", 'Type', "Generator:ID",
+                      'Title', 'Status', 'V', 'A', 'Created']
+
+            click.echo(tabulate(table_rows, headers=headers, tablefmt=output_format))
+            click.echo(f"\nTotal artifacts: {len(artifacts)}")
+            return
+
+        # Handle data dump
+        output_file = output or f"artifacts_dump_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+        if dump_format == 'json':
+            output_file = f"{output_file}.json" if not output else output
+            with open(output_file, 'w') as f:
+                json.dump(rows, f, indent=2)
+
+        elif dump_format == 'csv':
+            import csv
+            output_file = f"{output_file}.csv" if not output else output
+            with open(output_file, 'w', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=rows[0].keys())
+                writer.writeheader()
+                writer.writerows(rows)
+
+        elif dump_format == 'text':
+            output_file = f"{output_file}.txt" if not output else output
+            with open(output_file, 'w') as f:
+                for row in rows:
+                    f.write("\n\n\n=== Artifact ===\n")
+                    for key, value in row.items():
+                        f.write(f"{key}: {value}\n")
+                    f.write("\n")
+
+        click.echo(f"Successfully dumped {len(artifacts)} artifacts to {output_file}")
+
     except Exception as e:
         traceback.print_exc()
         click.echo(f"Error: {str(e)}", err=True)

@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import traceback
+import time
 
 from typing import List, Dict, Any, Optional, Type
 from datetime import datetime
@@ -60,7 +61,11 @@ class ArtifactManager:
     ##########################################################
     # Artifact Generation Methods
     ##########################################################
-    def artifact_bulk_create_from_spec(self, spec: Dict[str, Any], items: List[Dict[str, Any]], generator_name: Optional[str]) -> List[Dict[str, Any]]:
+    def artifact_bulk_create_from_spec(self, spec: Dict[str, Any],
+                                       items: List[Dict[str, Any]],
+                                       generator_name: Optional[str],
+                                       delay: int = 5, # seconds
+                                       ) -> List[Dict[str, Any]]:
         """Generate artifacts for multiple items using a specification"""
 
         if not spec:
@@ -81,7 +86,7 @@ class ArtifactManager:
         artifacts_to_create = []
         errors = []
 
-        for item in items:
+        for idx, item in enumerate(items):
             try:
 
                 existing_artifacts = item['artifacts']
@@ -112,11 +117,18 @@ class ArtifactManager:
                     }
                     artifacts_to_create.append(artifact)
 
+                if idx > 0 and idx % 10 == 0:
+                    print(f"[items: {idx}] New artifacts to create {len(artifacts_to_create)}")
+                    if delay > 0:
+                        time.sleep(delay)
+
+
             except Exception as e:
                 traceback.print_exc()
                 errors.append(f"Error processing item {item_id}: {str(e)}")
                 continue
 
+        print("Final artifacts to create", len(artifacts_to_create))
         created = self.db.artifact_bulk_create(artifacts_to_create)
 
         if errors:

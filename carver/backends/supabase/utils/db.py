@@ -389,6 +389,7 @@ class SupabaseClient:
                                    source_id: int,
                                    generator_name: Optional[str] = None,
                                    modified_after: Optional[datetime] = None,
+                                   offset: int = 0,
                                    limit: int = 10) -> Dict[int, Dict]:
         """
         Find items with their artifacts for a specific generator
@@ -396,16 +397,17 @@ class SupabaseClient:
         """
         try:
             # Get active items from source
-            items = self.client.table('carver_item') \
+            query = self.client.table('carver_item') \
                                .select('*') \
                                .eq('source_id', source_id) \
                                .eq('active', True)
 
             if modified_after:
-                items = items.gte('updated_at', modified_after.isoformat())
+                query = query.gte('updated_at', modified_after.isoformat())
 
-            items = items.limit(limit).execute()
-            items = items.data
+            query  = query.range(offset, offset + limit - 1)
+            result = query.execute()
+            items  = result.data
 
             if len(items) == 0:
                 return []
@@ -433,6 +435,7 @@ class SupabaseClient:
                                       source_id: int,
                                       generator_name: Optional[str] = None,
                                       modified_after: Optional[datetime] = None,
+                                      offset: int = 0,
                                       limit: int = 1000) -> List[Dict[str, Any]]:
 
         """Find items without artifacts for a specific generator"""
@@ -459,8 +462,7 @@ class SupabaseClient:
             if modified_after:
                 query = query.gte('updated_at', modified_after.isoformat())
 
-            query = query.limit(limit)
-
+            query  = query.range(offset, offset + limit - 1)
             result = query.execute()
             return result.data
 
@@ -598,22 +600,23 @@ class SupabaseClient:
             raise
 
     def artifact_search(self,
-                      spec_id: Optional[int] = None,
-                      item_id: Optional[int] = None,
-                      artifact_type: Optional[str] = None,
-                      status: Optional[str] = None,
-                      active: Optional[bool] = None,
-                      format: Optional[str] = None,
-                      language: Optional[str] = None,
-                      created_since: Optional[datetime] = None,
-                      updated_since: Optional[datetime] = None,
-                      artifact_ids: Optional[List[int]] = None,
-                      limit: int = 100,
-                      offset: int = 0) -> List[Dict[str, Any]]:
+                        spec_id: Optional[int] = None,
+                        item_id: Optional[int] = None,
+                        artifact_type: Optional[str] = None,
+                        status: Optional[str] = None,
+                        active: Optional[bool] = None,
+                        format: Optional[str] = None,
+                        language: Optional[str] = None,
+                        modified_after: Optional[datetime] = None,  # Added time window filter
+                        created_since: Optional[datetime] = None,
+                        updated_since: Optional[datetime] = None,
+                        artifact_ids: Optional[List[int]] = None,
+                        limit: int = 100,
+                        offset: int = 0) -> List[Dict[str, Any]]:
         """Search artifacts with various filters"""
         try:
             query = self.client.table('carver_artifact') \
-                .select('*, carver_artifact_specification(*)')
+                               .select('*, carver_artifact_specification(*), carver_item(name, title, description, content_type, content_identifier, url)')  # Added item info
 
             if spec_id:
                 query = query.eq('spec_id', spec_id)
@@ -633,18 +636,21 @@ class SupabaseClient:
                 query = query.gte('created_at', created_since.isoformat())
             if updated_since:
                 query = query.gte('updated_at', updated_since.isoformat())
+            if modified_after:  # Added time window filter handling
+                query = query.gte('updated_at', modified_after.isoformat())
             if artifact_ids:
                 query = query.in_('id', artifact_ids)
 
             # Add sorting and pagination
             query = query.order('created_at', desc=True) \
-                .range(offset, offset + limit - 1)
+                         .range(offset, offset + limit - 1)
 
             result = query.execute()
             return result.data
         except Exception as e:
             logger.error(f"Error in artifact search: {str(e)}")
             raise
+
 
     def artifact_bulk_create(self, artifacts: List[Dict[str, Any]],
                           chunk_size: int = 100) -> List[Dict[str, Any]]:
