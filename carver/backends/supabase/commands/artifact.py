@@ -316,7 +316,7 @@ def generate(ctx, spec_id: int, items: str, generator_name: str):
 @click.option('--spec-id', required=False, type=int, help='Specification ID')
 @click.option('--source-id', required=False, type=int, help='Source ID')
 @click.option('--last', type=str, help='Filter items by time (e.g. "1d", "2h", "30m")')
-@click.option('--generator-name', required=True, help='Generator name to use')
+@click.option('--generator-name', required=False, help='Generator name to use')
 @click.pass_context
 def bulk_generate(ctx, spec_id: int, source_id: int, last: Optional[str], generator_name: str):
     """Bulk generate artifacts for items from a source that don't have active artifacts."""
@@ -354,7 +354,8 @@ def bulk_generate(ctx, spec_id: int, source_id: int, last: Optional[str], genera
 
         # Process each specification
         for spec in specs:
-            if spec['config'].get('generator') != generator_name:
+            if ((generator_name is not None) and
+                (spec['config'].get('generator') != generator_name)):
                 continue
 
             try:

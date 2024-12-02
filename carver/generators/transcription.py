@@ -54,7 +54,7 @@ class TranscriptionGenerator(BaseArtifactGenerator):
 
     def generate(self, item: Dict[str, Any], config: Dict[str, Any], existing: List[Dict[str, Any]]) -> Dict[str, Any]:
 
-        print("generate() - Generating for", item['content_identifier'])
+        print("[{self.name}] Generating for", item['content_identifier'])
         videoid = item['content_identifier']
         languages = config.get('languages', ['en', 'en-GB'])
 
@@ -62,14 +62,15 @@ class TranscriptionGenerator(BaseArtifactGenerator):
         existing_languages = []
         for e in existing:
             lang = e.get('generator_id')
-            if lang is not None:
+            if ((e.get('generator_name', None) == self.name) and
+                (lang is not None)):
                 existing_languages.append(lang)
 
         missing_languages = [l for l in languages if l not in existing_languages]
-        print("generate() existing languages", existing_languages)
-        print("generate() missing languages", missing_languages)
+
+        print(f"[{self.name}] languages existing", existing_languages, " missing", missing_languages)
         if len(missing_languages) == 0:
-            # Nothing to do...
+            print(f"[{self.name}] Nothing to do")
             return []
 
         artifacts = self.get_transcripts(videoid, languages=missing_languages)
@@ -79,7 +80,7 @@ class TranscriptionGenerator(BaseArtifactGenerator):
                 'title': f"Transcription: {item.get('title', 'Untitled')}",
             })
 
-        print("generate() Returning", len(artifacts), "artifacts")
+        print(f"[{self.name}] Returning", len(artifacts), "artifacts")
         # print(json.dumps(artifacts, indent=4))
 
         return artifacts

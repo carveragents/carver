@@ -60,7 +60,7 @@ class ArtifactManager:
     ##########################################################
     # Artifact Generation Methods
     ##########################################################
-    def artifact_bulk_create_from_spec(self, spec: Dict[str, Any], items: List[Dict[str, Any]], generator_name: str) -> List[Dict[str, Any]]:
+    def artifact_bulk_create_from_spec(self, spec: Dict[str, Any], items: List[Dict[str, Any]], generator_name: Optional[str]) -> List[Dict[str, Any]]:
         """Generate artifacts for multiple items using a specification"""
 
         if not spec:
@@ -69,9 +69,13 @@ class ArtifactManager:
         if not spec['active']:
             raise ValueError(f"Specification {spec_id} is not active")
 
-        if spec['config'].get('generator') != generator_name:
-            raise ValueError(f"Specification {spec_id} does not use generator {generator_name}")
+        if generator_name is not None:
+            if spec['config'].get('generator') != generator_name:
+                raise ValueError(f"Specification {spec_id} does not use generator {generator_name}")
+        else:
+            generator_name = spec['config'].get('generator')
 
+        # Now run the generator...
         generator = ArtifactGeneratorFactory.get_generator(generator_name)
 
         artifacts_to_create = []
