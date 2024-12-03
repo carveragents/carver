@@ -48,7 +48,7 @@ class FeedReader(ABC):
     def get_reader(cls, source: Dict[str, Any], max_results: Optional[int] = None) -> 'FeedReader':
         """Factory method to get appropriate reader for source"""
 
-        from .youtube import YouTubeChannelReader, YouTubePlaylistReader
+        from .youtube import YouTubeChannelReader, YouTubePlaylistReader, YouTubeSearchReader
         from .github import GithubRepositoryReader
         from .podcast import PodcastReader
         from .rss import RSSReader
@@ -60,6 +60,7 @@ class FeedReader(ABC):
             ('YOUTUBE', 'CHANNEL'): YouTubeChannelReader,
             ('YOUTUBE', 'FEED'): YouTubePlaylistReader,
             ('YOUTUBE', 'PLAYLIST'): YouTubePlaylistReader,
+            ('YOUTUBE', 'SEARCH'): YouTubeSearchReader,
             ('GITHUB', 'REPOSITORY'): GithubRepositoryReader,
             ('REDDIT', 'FEED'): RSSReader,
             ('RSS', 'FEED'): RSSReader,

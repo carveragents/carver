@@ -92,11 +92,13 @@ class ArtifactManager:
                 existing_artifacts = item['artifacts']
                 item_id = item['id']
                 artifacts_data = generator.generate(item, spec['config'], existing_artifacts)
-
                 if isinstance(artifacts_data, dict):
                     artifacts_data = [artifacts_data]
 
                 for artifact_data in artifacts_data:
+                    print("Adding", (item['id'], spec['id'], artifact_data['generator_name'],
+                                     artifact_data['generator_id']))
+
                     artifact = {
                         'active': True,
                         'spec_id': spec['id'],

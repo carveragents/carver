@@ -103,6 +103,63 @@ class YouTubeReader(FeedReader):
         # You could integrate with langdetect or other language detection libraries
         return 'en'  # Default to English for now
 
+class YouTubeSearchReader(YouTubeReader):
+    """Reader for YouTube search results. Supports multiple search phrases using YouTube's boolean operators."""
+
+
+    def read(self, details=False) -> List[Dict[str, Any]]:
+
+        query = self.source['source_identifier']
+
+        page_token = None
+        items = []
+        remaining_results = self.max_results
+
+        while True:
+            try:
+                # Calculate how many results to request
+                request_max = min(50, remaining_results) if remaining_results else 50
+
+                request = self.youtube.search().list(
+                    part='id,snippet',
+                    q=query,
+                    order='date',  # Default to date ordering like other readers
+                    type='video',  # Only get videos
+                    maxResults=request_max,
+                    pageToken=page_token
+                )
+
+                response = request.execute()
+                current_items = response.get('items', [])
+
+                if not current_items:
+                    break
+
+                # Get detailed information for these videos if requested
+                if details:
+                    video_ids = [item['id']['videoId'] for item in current_items]
+                    detailed_items = self.get_video_details(video_ids)
+                    items.extend(detailed_items)
+                else:
+                    items.extend(current_items)
+
+                # Update remaining results
+                if remaining_results is not None:
+                    remaining_results -= len(current_items)
+                    if remaining_results <= 0:
+                        break
+
+                # Get next page token
+                page_token = response.get('nextPageToken')
+                if not page_token:
+                    break
+
+            except Exception as e:
+                logger.error(f"Error performing YouTube search for query '{query}': {str(e)}")
+                break
+
+        return [self.prepare_item(item) for item in items]
+
 class YouTubeChannelReader(YouTubeReader):
     """Reader for YouTube channels"""
 

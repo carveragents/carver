@@ -15,7 +15,7 @@ class TranscriptionGenerator(BaseArtifactGenerator):
     name = "transcription"
     description = "Extracts and processes transcriptions from audio/video content"
     supported_platforms = ['YOUTUBE', 'PODCAST']
-    supported_source_types = ['FEED', 'PLAYLIST', 'CHANNEL']
+    supported_source_types = ['FEED', 'PLAYLIST', 'CHANNEL', "SEARCH"]
     required_config = ['languages']
 
     def get_transcripts(self, youtube_id, languages=['en', 'en-GB']) -> Dict[str, Any]:
@@ -27,11 +27,16 @@ class TranscriptionGenerator(BaseArtifactGenerator):
         print("Available", [transcript.language_code for transcript in transcript_list])
 
         transcripts = []
+        seen = []
         for transcript in transcript_list:
             lang = transcript.language_code
             if lang not in languages:
                 print("Skipping", lang, "not in ", languages)
                 continue
+            if lang in seen:
+                print("Skipping", lang, "duplicate entry")
+                continue
+            seen.append(lang)
             textlist = transcript.fetch()
             duration = sum([line['duration'] for line in textlist])
             text = ' '.join([line['text'] for line in textlist])

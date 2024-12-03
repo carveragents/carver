@@ -190,7 +190,7 @@ def search(ctx, active: Optional[bool], entity_id: Optional[int],
                 entity_name = source['carver_entity']['name'] if source['carver_entity'] else 'N/A'
                 rows.append([
                     source['id'],
-                    source['name'],
+                    source['name'][:30] + ('...' if len(source['name']) > 30 else ''),
                     f"{entity_name} ({source['entity_id']})",
                     source['platform'],
                     source['source_type'],

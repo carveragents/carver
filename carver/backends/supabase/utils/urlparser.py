@@ -21,6 +21,7 @@ class SourceURLParser:
     YOUTUBE_PATTERNS = {
         'channel': r'(?:https?:\/\/)?(?:www\.)?youtube\.com\/(?:c\/|channel\/|user\/)?([a-zA-Z0-9_-]+)',
         'playlist': r'(?:https?:\/\/)?(?:www\.)?youtube\.com\/(?:playlist\?list=|watch\?v=[a-zA-Z0-9_-]+&list=)([a-zA-Z0-9_-]+)',
+        'search': r'(?:https?:\/\/)?(?:www\.)?youtube\.com\/results\?(?:[^&]*&)*search_query=([^&]+)'
     }
 
     GITHUB_PATTERNS = {
@@ -73,6 +74,39 @@ class SourceURLParser:
         """Parse YouTube URLs with rich metadata"""
         if 'youtube.com' not in parsed_url.netloc:
             return None
+
+        if '/results' in url:
+            try:
+                # Parse query parameters
+                query_params = parse_qs(parsed_url.query)
+
+                if 'search_query' in query_params:
+                    search_query = query_params['search_query'][0]
+
+                    # Build search config
+                    search_config = {
+                        'type': 'search',
+                        'query': search_query,
+                        'fetched_at': datetime.utcnow().isoformat()
+                    }
+
+                    # Add additional search parameters if present
+                    for param in ['sp', 'order']:
+                        if param in query_params:
+                            search_config[param] = query_params[param][0]
+
+                    return {
+                        'platform': 'YOUTUBE',
+                        'source_type': 'SEARCH',
+                        'name': f'YouTube Search: {search_query}',
+                        'description': f'YouTube search results for: {search_query}',
+                        'source_identifier': search_query,
+                        'url': url,
+                        'config': search_config
+                    }
+            except Exception as e:
+                logger.error(f"YouTube search parsing error: {str(e)}")
+                return None
 
         # Try parsing as channel
         if '/channel/' in url or '/c/' in url or '/user/' in url:
