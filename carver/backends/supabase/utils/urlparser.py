@@ -33,6 +33,11 @@ class SourceURLParser:
         'user': r'(?:https?:\/\/)?(?:www\.)?reddit\.com\/user\/([a-zA-Z0-9_-]+)\/?$'
     }
 
+    SUBSTACK_PATTERNS = {
+        'newsletter': r'(?:https?:\/\/)?([a-zA-Z0-9-]+)\.substack\.com\/?$',
+        'post': r'(?:https?:\/\/)?([a-zA-Z0-9-]+)\.substack\.com\/p\/([a-zA-Z0-9-]+)'
+    }
+
     @classmethod
     def parse_url(cls, url: str) -> Optional[Dict]:
         """
@@ -50,6 +55,7 @@ class SourceURLParser:
             parsers = [
                 cls._parse_youtube,
                 cls._parse_github,
+                cls._parse_substack,
                 cls._parse_reddit,
                 cls._parse_podcast,
                 cls._parse_rss
@@ -447,3 +453,70 @@ class SourceURLParser:
 
         feed_namespaces = getattr(feed, 'namespaces', {}).values()
         return any(ns in feed_namespaces for ns in podcast_namespaces)
+
+    @classmethod
+    def _parse_substack(cls, url: str, parsed_url: urlparse) -> Optional[Dict]:
+        """Parse Substack URLs with metadata"""
+        if 'substack.com' not in parsed_url.netloc:
+            return None
+
+        try:
+            # Try matching newsletter homepage pattern
+            newsletter_name = None
+            newsletter_match = re.match(cls.SUBSTACK_PATTERNS['newsletter'], url)
+            if newsletter_match:
+                newsletter_name = newsletter_match.group(1)
+            else:
+                post_match = re.match(cls.SUBSTACK_PATTERNS['post'], url)
+                if post_match:
+                    newsletter_name = post_match.group(1)
+
+            if newsletter_name is None:
+                logger.error(f"Substack URL parsing error")
+                return None
+
+            metadata = newsletter.get_newsletter_post_metadata(
+                newsletter_name,
+                start_offset=0,
+                end_offset=1  # Just get one post to get newsletter info
+            )
+
+            if metadata:
+                latest_post = metadata[0]
+                return {
+                    'platform': 'SUBSTACK',
+                    'source_type': 'NEWSLETTER',
+                    'name': latest_post.get('publication_name', newsletter_name),
+                    'description': latest_post.get('publication_description', ''),
+                    'source_identifier': newsletter_name,
+                    'url': url,
+                    'config': {
+                        'type': 'newsletter',
+                        'subdomain': newsletter_name,
+                        'newsletter_name': newsletter_name,
+                        'author': latest_post.get('author', {}).get('name', ''),
+                        'fetched_at': datetime.utcnow().isoformat()
+                    }
+                }
+        except Exception as e:
+            # Fall back to basic info if API fails
+            return {
+                'platform': 'SUBSTACK',
+                'source_type': 'NEWSLETTER',
+                'name': newsletter_name,
+                'description': '',
+                'source_identifier': newsletter_name,
+                'url': url,
+                'config': {
+                    'type': 'newsletter',
+                    'newsletter_name': newsletter_name,
+                    'subdomain': newsletter_name,
+                    'fetched_at': datetime.utcnow().isoformat()
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"Substack parsing error: {str(e)}")
+            return None
+
+        return None

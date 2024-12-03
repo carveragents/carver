@@ -41,7 +41,9 @@ dependencies = [
    "isodate==0.7.0",
    "lxml>=4.9.0",  # For better XML parsing
    "langdetect>=1.0.9",  # For language detection
-   "bs4"
+   "bs4",
+   "substack-api",
+   "lxml_html_clean"
 ]
 
 [project.urls]

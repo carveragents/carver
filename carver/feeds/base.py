@@ -52,6 +52,7 @@ class FeedReader(ABC):
         from .github import GithubRepositoryReader
         from .podcast import PodcastReader
         from .rss import RSSReader
+        from .substack import SubstackReader
 
         platform = source.get('platform', '').upper()
         source_type = source.get('source_type', '').upper()
@@ -64,7 +65,9 @@ class FeedReader(ABC):
             ('GITHUB', 'REPOSITORY'): GithubRepositoryReader,
             ('REDDIT', 'FEED'): RSSReader,
             ('RSS', 'FEED'): RSSReader,
-            ('RSS', 'PODCAST'): PodcastReader
+            ('RSS', 'PODCAST'): PodcastReader,
+            ('SUBSTACK', 'FEED'): SubstackReader,
+            ('SUBSTACK', 'NEWSLETTER'): SubstackReader,
         }
 
         reader_class = reader_map.get((platform, source_type))
