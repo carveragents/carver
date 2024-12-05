@@ -96,7 +96,7 @@ class ArtifactManager:
                     artifacts_data = [artifacts_data]
 
                 for artifact_data in artifacts_data:
-                    print("Adding", (item['id'], spec['id'], artifact_data['generator_name'],
+                    print(f"[{idx}] Adding", (item['id'], spec['id'], artifact_data['generator_name'],
                                      artifact_data['generator_id']))
 
                     artifact = {

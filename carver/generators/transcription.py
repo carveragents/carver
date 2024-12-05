@@ -22,25 +22,25 @@ class TranscriptionGenerator(BaseArtifactGenerator):
         """
         Generate or process transcription from content
         """
-        print("getting transcripts for", youtube_id, languages)
+        print(f"[{self.name} {youtube_id} getting transcripts for", youtube_id, languages)
         transcript_list = YouTubeTranscriptApi.list_transcripts(youtube_id)
-        print("Available", [transcript.language_code for transcript in transcript_list])
+        available_languages = list(set([transcript.language_code for transcript in transcript_list]))
+        print(f"[{self.name} {youtube_id}] Available", available_languages)
 
         transcripts = []
         seen = []
         for transcript in transcript_list:
             lang = transcript.language_code
-            if lang not in languages:
-                print("Skipping", lang, "not in ", languages)
-                continue
             if lang in seen:
-                print("Skipping", lang, "duplicate entry")
+                continue
+            if lang not in languages:
+                print(f"[{self.name} {youtube_id}] Skipping", lang, "not in ", languages)
                 continue
             seen.append(lang)
             textlist = transcript.fetch()
             duration = sum([line['duration'] for line in textlist])
             text = ' '.join([line['text'] for line in textlist])
-            print("Found", youtube_id, lang, text[:10])
+            print(f"[{self.name} {youtube_id}] Found", youtube_id, lang, text[:10])
             transcripts.append({
                 "generator_name": "transcription",
                 "generator_id": lang,
@@ -73,7 +73,7 @@ class TranscriptionGenerator(BaseArtifactGenerator):
 
         missing_languages = [l for l in languages if l not in existing_languages]
 
-        print(f"[{self.name}] languages existing", existing_languages, " missing", missing_languages)
+        print(f"[{self.name} {videoid}] languages existing", existing_languages, " missing", missing_languages)
         if len(missing_languages) == 0:
             print(f"[{self.name}] Nothing to do")
             return []

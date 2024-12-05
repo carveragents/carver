@@ -12,7 +12,7 @@ from tabulate import tabulate
 from ..utils import *
 
 PLATFORM_CHOICES = ['TWITTER', 'GITHUB', 'YOUTUBE', 'RSS', 'WEB', 'SUBSTACK']
-SOURCE_TYPE_CHOICES = ['FEED', 'PROFILE', 'CHANNEL', 'REPOSITORY', 'PAGE', "NEWSLETTER']
+SOURCE_TYPE_CHOICES = ['FEED', 'PROFILE', 'CHANNEL', 'REPOSITORY', 'PAGE', "NEWSLETTER"]
 
 @click.group()
 @click.pass_context

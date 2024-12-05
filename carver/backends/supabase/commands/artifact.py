@@ -425,7 +425,7 @@ def search(ctx, spec_id: Optional[int], item_id: Optional[int],
                 'specification': art['carver_artifact_specification']['name'],
                 'item_id': art['item_id'],
                 'item_name': art['carver_item']['name'],
-                'item_decription': art['carver_item']['description'],
+                'item_description': art['carver_item']['description'],
                 'item_url': art['carver_item']['url'],
                 'artifact_type': art['artifact_type'],
                 'generator': f"{art['generator_name']}:{art['generator_id']}",
@@ -479,11 +479,22 @@ def search(ctx, spec_id: Optional[int], item_id: Optional[int],
 
         elif dump_format == 'text':
             output_file = f"{output_file}.txt" if not output else output
+            marker = "==================================="
+            header = f"\n\n\n{marker}\nArtifact\n{marker}\n\n"
             with open(output_file, 'w') as f:
                 for row in rows:
-                    f.write("\n\n\n=== Artifact ===\n")
+                    f.write(header)
                     for key, value in row.items():
-                        f.write(f"{key}: {value}\n")
+                        label = key.replace("_", " ").title()
+                        if len(str(value)) > 50:
+                            newline = "\n"
+                            lines = str(value).split("\n")
+                            value = ""
+                            for l in lines:
+                                value += "    " + l + "\n"
+                        else:
+                            newline = " "
+                        f.write(f"[{label.upper()[:15]:15}] {newline}{value}\n")
                     f.write("\n")
 
         click.echo(f"Successfully dumped {len(artifacts)} artifacts to {output_file}")
