@@ -5,18 +5,22 @@ import traceback
 
 from typing import Optional
 from datetime import datetime
+from collections import defaultdict
 
 import click
 
 from tabulate import tabulate
 
+from .item_manager import ItemManager
+from .artifact_manager import ArtifactManager
 from ..utils import *
 
 @click.group()
 @click.pass_context
 def entity(ctx):
     """Manage entities in the system."""
-    pass
+    ctx.obj['item_manager'] = ItemManager(ctx.obj['supabase'])
+    ctx.obj['artifact_manager'] = ArtifactManager(ctx.obj['supabase'])
 
 @entity.command()
 @click.option('--name', required=True, help='Name of the entity')
@@ -118,7 +122,7 @@ def update(ctx, entity_id: int, activate: bool, deactivate: bool,
         click.echo(f"Error: {str(e)}", err=True)
 
 @entity.command()
-@click.option('--active/--inactive', default=None, help='Filter by active status')
+@click.option('--active/--inactive', default=True, help='Filter by active status')
 @click.option('--entity-type',
               type=click.Choice(['PERSON', 'ORGANIZATION', 'PROJECT']),
               help='Filter by entity type')
@@ -221,3 +225,159 @@ def show(ctx, entity_id: int):
     except Exception as e:
         traceback.print_exc()
         click.echo(f"Error: {str(e)}", err=True)
+
+@entity.command()
+@click.argument('entity_id', type=int)
+@click.option('--fields', help='Comma-separated list of fields to sync for each source')
+@click.option('--max-results', type=int, help='Maximum number of items to fetch per source')
+@click.pass_context
+def sync_items(ctx, entity_id: int, fields: Optional[str], max_results: Optional[int]):
+    """Sync items from all active sources for an entity."""
+    db = ctx.obj['supabase']
+    item_manager = ctx.obj['item_manager']
+
+    try:
+        # Get all active sources for the entity
+        sources = db.source_search(
+            active=True,
+            entity_id=entity_id
+        )
+
+        if not sources:
+            click.echo(f"No active sources found for entity {entity_id}")
+            return
+
+        total_added = 0
+        total_updated = 0
+        field_list = fields.split(',') if fields else None
+
+        # Process each source
+        for source in sources:
+            click.echo(f"\nProcessing source: {source['name']} (ID: {source['id']})")
+            try:
+                added, updated = item_manager.sync_items(
+                    source['id'],
+                    field_list,
+                    max_results
+                )
+                total_added += added
+                total_updated += updated
+                click.echo(f"- Added: {added}, Updated: {updated}")
+            except Exception as e:
+                click.echo(f"Error processing source {source['id']}: {str(e)}", err=True)
+                continue
+
+        click.echo(f"\nSync completed for {len(sources)} sources")
+        click.echo(f"Total items: {total_added} added, {total_updated} updated")
+
+    except Exception as e:
+        traceback.print_exc()
+        click.echo(f"Error: {str(e)}", err=True)
+
+@entity.command()
+@click.argument('entity_id', type=int)
+@click.option('--max-retries', type=int, default=3,
+              help='Maximum number of retries for dependency resolution')
+@click.option('--last', type=str, help='Filter items by time (e.g. "1d", "2h", "30m")')
+@click.option('--offset', default=0, type=int, help='Offset for search results')
+@click.option('--limit', default=50, type=int, help='Maximum number of items to fetch')
+@click.pass_context
+def generate_bulk(ctx, entity_id: int, max_retries: int, last: Optional[str],
+                 offset: int, limit: int):
+    """Generate bulk content for all active specifications of an entity in dependency order."""
+    db = ctx.obj['supabase']
+    artifact_manager = ctx.obj['artifact_manager']
+
+    try:
+        # Get all active specifications for the entity
+        specs = db.specification_search(
+            entity_id=entity_id,
+            active=True
+        )
+
+        if not specs:
+            click.echo(f"No active specifications found for entity {entity_id}")
+            return
+
+        click.echo(f"Found {len(specs)} specs")
+
+        # Sort specifications by dependencies
+        try:
+            sorted_specs_ids = topological_sort(specs)
+        except ValueError as e:
+            click.echo(f"Error in dependency resolution: {str(e)}", err=True)
+            return
+
+        # Group specifications by source
+        source_specs = {}
+        for spec in specs:
+            source_id = spec['source_id']
+            if source_id not in source_specs:
+                source_specs[source_id] = {}
+            source_specs[source_id][spec['id']] = spec
+
+        click.echo(f"Found {len(source_specs)} sources")
+
+        # Process each source
+        total_generated = 0
+        failed_specs = []
+
+        for source_id, source_specs in source_specs.items():
+
+            sample_spec = list(source_specs.values())[0]
+            source = sample_spec['carver_source']
+            click.echo(f"\nProcessing source ID: {source_id} {source['name']}")
+
+            # Get items needing artifacts
+            time_filter = parse_date_filter(last) if last else None
+            items = db.item_search_with_artifacts(
+                source_id=source_id,
+                modified_after=time_filter,
+                offset=offset,
+                limit=limit
+            )
+
+            if not items:
+                click.echo(f"No items found requiring artifact generation for source {source_id}")
+                continue
+
+            click.echo(f"Found {len(items)} items to process")
+
+            # Process specifications for this source
+            for spec_id in sorted_specs_ids:
+                if spec_id not in source_specs:
+                    continue
+
+                spec = source_specs[spec_id]
+                source = spec['carver_source']
+                click.echo(f"\nProcessing Spec ID: {source['name']}:{spec_id} {spec['name']}")
+
+                retry_count = 0
+                success = False
+
+                while retry_count < max_retries and not success:
+                    try:
+                        click.echo(f"\nProcessing specification: {spec['name']} (ID: {spec['id']})")
+                        results = artifact_manager.artifact_bulk_create_from_spec(spec,
+                                                                                  items,
+                                                                                  None)
+                        total_generated += len(results)
+                        click.echo(f"Generated {len(results)} artifacts")
+                        success = True
+                    except Exception as e:
+                        retry_count += 1
+                        if retry_count < max_retries:
+                            click.echo(f"Retry {retry_count}/{max_retries} for spec {spec['id']}")
+                        else:
+                            click.echo(f"Failed to process spec {spec['id']} after {max_retries} attempts: {str(e)}", err=True)
+                            failed_specs.append(spec['id'])
+
+        click.echo(f"\nBulk generation completed")
+        click.echo(f"Total artifacts generated: {total_generated}")
+        if failed_specs:
+            click.echo(f"Failed specifications: {failed_specs}")
+
+    except Exception as e:
+        traceback.print_exc()
+        click.echo(f"Error: {str(e)}", err=True)
+

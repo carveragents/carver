@@ -14,7 +14,7 @@ from .item_manager import ItemManager
 @click.pass_context
 def item(ctx):
     """Manage items in the system."""
-    ctx.obj['manager'] = ItemManager(ctx.obj['supabase'])
+    ctx.obj['item_manager'] = ItemManager(ctx.obj['supabase'])
 
 @item.command()
 @click.option('--source-id', required=True, type=int, help='Source ID')
@@ -23,7 +23,7 @@ def item(ctx):
 @click.pass_context
 def sync(ctx, source_id: int, fields: Optional[str], max_results: Optional[int]):
     """Sync items from source feed"""
-    manager = ctx.obj['manager']
+    manager = ctx.obj['item_manager']
 
     try:
         field_list = fields.split(',') if fields else None
@@ -39,7 +39,7 @@ def sync(ctx, source_id: int, fields: Optional[str], max_results: Optional[int])
 @click.pass_context
 def activate(ctx, source_id: int, identifiers: str):
     """Activate specific items by their content identifiers"""
-    manager = ctx.obj['manager']
+    manager = ctx.obj['item_manager']
 
     try:
         id_list = [i.strip() for i in identifiers.split(',')]
@@ -55,7 +55,7 @@ def activate(ctx, source_id: int, identifiers: str):
 @click.pass_context
 def deactivate(ctx, source_id: int, identifiers: str):
     """Deactivate specific items by their content identifiers"""
-    manager = ctx.obj['manager']
+    manager = ctx.obj['item_manager']
 
     try:
         id_list = [i.strip() for i in identifiers.split(',')]

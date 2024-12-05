@@ -60,7 +60,7 @@ def add(ctx, source_id: int, name: str, description: Optional[str], config: str)
 @spec.command()
 @click.option('--source-id', type=int, help='Filter by source ID')
 @click.option('--name', help='Filter by name (partial match)')
-@click.option('--active/--inactive', default=None, help='Filter by active status')
+@click.option('--active/--inactive', default=True, help='Filter by active status')
 @click.option('--format', 'output_format',
               type=click.Choice(['table', 'grid', 'pipe', 'orgtbl', 'rst', 'mediawiki', 'html']),
               default='table',
@@ -69,6 +69,7 @@ def add(ctx, source_id: int, name: str, description: Optional[str], config: str)
 def search(ctx, source_id: Optional[int], name: Optional[str],
            active: Optional[bool], output_format: str):
     """Search artifact specifications."""
+
     db = ctx.obj['supabase']
     try:
         specs = db.specification_search(
@@ -78,15 +79,40 @@ def search(ctx, source_id: Optional[int], name: Optional[str],
         )
 
         if specs:
-            headers = ['ID', 'Source', 'Name', 'Generator', 'Active', 'Updated']
+            specmap = {spec['id']: spec for spec in specs}
+
+            headers = ['ID', 'Source', 'Name', 'Generator', 'Dependencies', 'Active', 'Updated']
             rows = []
             for spec in specs:
                 source_name = spec['carver_source']['name'] if spec.get('carver_source') else 'N/A'
+
+                # Get dependencies
+                deps = spec['config'].get('dependencies', [])
+                if isinstance(deps, (int, str)):
+                    deps = [deps]
+                elif deps is None:
+                    deps = []
+
+                # Format dependencies string
+                if deps:
+                    # Get dependency names
+                    dep_names = []
+                    for dep_id in deps:
+                        if dep_id not in specmap:
+                            click.echo(f"Warning: Specification {dep_id} not found", err=True)
+                            return
+                        dep_spec = specmap[dep_id]
+                        dep_names.append(f"{dep_id}:{dep_spec['name'][:20]}")
+                    deps_str = ",\n".join(dep_names)
+                else:
+                    deps_str = "None"
+
                 rows.append([
                     spec['id'],
                     f"{source_name[:20]} ({spec['source_id']})",
                     spec['name'],
                     spec['config'].get('generator'),
+                    deps_str,
                     '✓' if spec['active'] else '✗',
                     format_datetime(spec['updated_at'])
                 ])
@@ -287,6 +313,58 @@ def deactivate(ctx, specs: str):
         traceback.print_exc()
         click.echo(f"Error: {str(e)}", err=True)
 
+@spec.command()
+@click.argument('spec_id', type=int)
+@click.option('--depends-on', required=True, help='Comma-separated list of specification IDs that this spec depends on')
+@click.pass_context
+def update_dependencies(ctx, spec_id: int, depends_on: str):
+    """Update dependencies of a specification, replacing any existing dependencies."""
+    db = ctx.obj['supabase']
+    try:
+        # Get the specification
+        spec = db.specification_get(spec_id)
+        if not spec:
+            click.echo(f"Specification {spec_id} not found", err=True)
+            return
+
+        # Parse dependency IDs
+        try:
+            dependency_ids = [int(s.strip()) for s in depends_on.split(',')]
+        except ValueError:
+            click.echo("Error: Dependencies must be comma-separated integers", err=True)
+            return
+
+        # Validate all dependency specifications exist
+        for dep_id in dependency_ids:
+            dep_spec = db.specification_get(dep_id)
+            if not dep_spec:
+                click.echo(f"Warning: Specification {dep_id} not found", err=True)
+                return
+
+        # Update the config with new dependencies
+        config = spec.get('config', {})
+        config['dependencies'] = dependency_ids
+        update_data = {
+            'config': config,
+            'updated_at': datetime.utcnow().isoformat()
+        }
+
+        # Update the specification
+        updated_spec = db.specification_update(spec_id, update_data)
+        if updated_spec:
+            click.echo(f"Successfully updated dependencies for specification {spec_id}")
+            click.echo("\nNew dependencies:")
+            for dep_id in dependency_ids:
+                dep_spec = db.specification_get(dep_id)
+                if dep_spec:
+                    click.echo(f"- {dep_id}: {dep_spec['name']}")
+        else:
+            click.echo("Error updating specification", err=True)
+
+    except Exception as e:
+        traceback.print_exc()
+        click.echo(f"Error: {str(e)}", err=True)
+
 ####################################
 # Artifact Commands
 ####################################
@@ -378,7 +456,7 @@ def bulk_generate(ctx, spec_id: int, source_id: int, last: Optional[str], genera
 @click.option('--item-id', type=int, help='Filter by item ID')
 @click.option('--artifact-type', help='Filter by artifact type')
 @click.option('--status', help='Filter by status')
-@click.option('--active/--inactive', default=None, help='Filter by active status')
+@click.option('--active/--inactive', default=True, help='Filter by active status')
 @click.option('--last', type=str, help='Filter by time window (e.g. "1d", "2h", "30m")')
 @click.option('--offset', default=0, type=int, help='Offset for search results')
 @click.option('--limit', default=50, type=int, help='Maximum number of items to fetch')

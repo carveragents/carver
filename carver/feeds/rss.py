@@ -66,7 +66,17 @@ class RSSReader(FeedReader):
         """Read RSS feed"""
 
         try:
-            feed = feedparser.parse(self.source['url'])
+
+            headers = {
+                "User-Agent": "Mozilla/5.0 (compatible; MyRSSParser/1.0; +https://django.org)"
+            }
+
+            url = self.source['url']
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()  # Raise an exception for HTTP errors
+
+            # Parse the feed content
+            feed = feedparser.parse(response.text)
 
             if feed.bozo and feed.bozo_exception:
                 logger.error(f"Feed parsing error: {str(feed.bozo_exception)}")

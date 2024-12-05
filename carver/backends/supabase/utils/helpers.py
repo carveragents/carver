@@ -1,7 +1,9 @@
 import os
 import sys
+import json
 
 from typing import List, Dict, Any
+from collections import defaultdict
 from datetime import datetime, timedelta
 
 from supabase import create_client, Client
@@ -10,11 +12,11 @@ from dateutil import parser
 from carver.utils import get_config
 
 __all__ = [
-
     'get_supabase_client',
     'format_datetime',
     'parse_date_filter',
-    'chunks'
+    'chunks',
+    'topological_sort'
 ]
 
 def get_supabase_client() -> Client:
@@ -49,3 +51,46 @@ def chunks(lst: List[Any], n: int) -> List[List[Any]]:
     """Yield successive n-sized chunks from lst."""
     for i in range(0, len(lst), n):
         yield lst[i:i + n]
+
+def build_dependency_graph(specs):
+    """Build a graph of specification dependencies."""
+    graph = defaultdict(list)
+
+    specs = sorted(specs, key=lambda x: x['id'])
+    for spec in specs:
+        spec_id = spec['id']
+        dependencies = spec.get('config', {}).get('dependencies', [])
+        if isinstance(dependencies, int):
+            dependencies = [dependencies]
+        elif isinstance(dependencies, str):
+            dependencies = [int(dependencies)]
+        graph[spec_id] = dependencies
+
+    return graph
+
+def topological_sort(specs):
+    """Sort specifications based on dependencies."""
+
+    graph = build_dependency_graph(specs)
+
+    def visit(node, visited, temp_mark, order, graph):
+        if node in temp_mark:
+            raise ValueError(f"Circular dependency detected involving spec {node}")
+        if node not in visited:
+            temp_mark.add(node)
+            for neighbor in graph[node]:
+                visit(neighbor, visited, temp_mark, order, graph)
+            temp_mark.remove(node)
+            visited.add(node)
+            order.append(node)
+
+    visited = set()
+    temp_mark = set()
+    order = []
+    for node in graph:
+        if node not in visited:
+            visit(node, visited, temp_mark, order, graph)
+
+    return order
+
+

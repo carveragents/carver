@@ -488,6 +488,7 @@ class SupabaseClient:
 
     def specification_search(self,
                              source_id: Optional[int] = None,
+                             entity_id: Optional[int] = None,
                              spec_id: Optional[int] = None,
                              name: Optional[str] = None,
                              active: Optional[bool] = None,
@@ -495,15 +496,32 @@ class SupabaseClient:
                              updated_since: Optional[datetime] = None,
                              limit: int = 100,
                              offset: int = 0) -> List[Dict[str, Any]]:
-        """Search artifact specifications with filters"""
+        """
+        Search artifact specifications with filters
+
+        Args:
+           source_id: Filter by source ID
+           entity_id: Filter by entity ID (will return specs from all sources belonging to the entity)
+           spec_id: Filter by specification ID
+           name: Search in name and description
+           active: Filter by active status
+           created_since: Filter by creation date
+           updated_since: Filter by update date
+           limit: Maximum number of specifications to return
+           offset: Number of specifications to skip
+        """
         try:
+            # Include carver_source and its related entity in the join
             query = self.client.table('carver_artifact_specification') \
-                .select('*, carver_source(*)')
+                               .select('*, carver_source!inner(*, carver_entity(*))')
 
             if spec_id:
                 query = query.eq('id', spec_id)
             if source_id:
                 query = query.eq('source_id', source_id)
+            if entity_id:
+                # Filter by entity_id through the source -> entity relationship
+                query = query.eq('carver_source.entity_id', entity_id)
             if name:
                 query = query.or_(f'name.ilike.%{name}%,description.ilike.%{name}%')
             if active is not None:
@@ -515,13 +533,14 @@ class SupabaseClient:
 
             # Add sorting and pagination
             query = query.order('created_at', desc=True) \
-                .range(offset, offset + limit - 1)
+                         .range(offset, offset + limit - 1)
 
             result = query.execute()
             return result.data
         except Exception as e:
             logger.error(f"Error in specification search: {str(e)}")
             raise
+
 
     def specification_create(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Create a new artifact specification"""

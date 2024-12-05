@@ -9,6 +9,7 @@ from datetime import datetime
 import click
 from tabulate import tabulate
 
+from .item_manager import ItemManager
 from ..utils import *
 
 PLATFORM_CHOICES = ['TWITTER', 'GITHUB', 'YOUTUBE', 'RSS', 'WEB', 'SUBSTACK']
@@ -18,7 +19,7 @@ SOURCE_TYPE_CHOICES = ['FEED', 'PROFILE', 'CHANNEL', 'REPOSITORY', 'PAGE', "NEWS
 @click.pass_context
 def source(ctx):
     """Manage sources in the system."""
-    pass
+    ctx.obj['item_manager'] = ItemManager(ctx.obj['supabase'])
 
 @source.command()
 @click.option('--url', required=True, help='URL of the source')
@@ -260,6 +261,43 @@ def show(ctx, source_id: int):
         if source.get('analysis_metadata'):
             click.echo("\n=== Analysis Metadata ===")
             click.echo(json.dumps(source['analysis_metadata'], indent=2))
+
+    except Exception as e:
+        traceback.print_exc()
+        click.echo(f"Error: {str(e)}", err=True)
+
+@source.command()
+@click.argument('source_id', type=int)
+@click.option('--fields', help='Comma-separated list of fields to sync')
+@click.option('--max-results', type=int, help='Maximum number of items to fetch')
+@click.pass_context
+def sync_items(ctx, source_id: int, fields: Optional[str], max_results: Optional[int]):
+    """Sync items from a specific source."""
+    db = ctx.obj['supabase']
+    item_manager = ctx.obj['item_manager']
+
+    try:
+        # Verify source exists and is active
+        source = db.source_get(source_id)
+        if not source:
+            click.echo(f"Source {source_id} not found", err=True)
+            return
+
+        if not source['active']:
+            click.echo(f"Warning: Source {source_id} is not active", err=True)
+            if not click.confirm("Continue anyway?"):
+                return
+
+        click.echo(f"\nSyncing items for source: {source['name']} (ID: {source_id})")
+
+        field_list = fields.split(',') if fields else None
+        try:
+            added, updated = item_manager.sync_items(source_id, field_list, max_results)
+            click.echo(f"Successfully synced items:")
+            click.echo(f"- Added: {added}")
+            click.echo(f"- Updated: {updated}")
+        except Exception as e:
+            click.echo(f"Error syncing items: {str(e)}", err=True)
 
     except Exception as e:
         traceback.print_exc()
