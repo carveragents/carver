@@ -2,9 +2,12 @@ import os
 import sys
 import json
 import logging
+import traceback
 
 from typing import List, Dict, Any, Optional
 from datetime import datetime
+
+from ..utils import get_config
 
 import googleapiclient.discovery
 
@@ -266,3 +269,53 @@ class YouTubePlaylistReader(YouTubeReader):
                 break
 
         return [self.prepare_item(item) for item in items]
+
+
+class YouTubePlaylistDiscovery:
+    """Discovers YouTube playlists based on search criteria"""
+
+    def __init__(self):
+        config = get_config()
+        api_key = config.get('youtube_api_key')
+        if not api_key:
+            raise ValueError("YouTube API key not found in source config")
+        self.youtube = googleapiclient.discovery.build(
+            'youtube', 'v3', developerKey=api_key)
+
+    def discover_playlists(self, query: str,
+                           what: Optional[str] = "playlist",
+                           max_results: Optional[int] = 10) -> List[Dict[str, Any]]:
+        """Search for playlists matching query"""
+        try:
+
+            assert what in ['playlist', 'channel']
+
+            request = self.youtube.search().list(
+                part='id,snippet',
+                q=query,
+                type=what,
+                order='date',
+                maxResults=min(max_results, 50)
+            )
+
+            response = request.execute()
+            playlists = []
+
+            for item in response.get('items', []):
+                _id = item['id'].get('playlistId', item['id'].get('channelId'))
+                playlist = {
+                    'id': _id,
+                    'title': item['snippet']['title'],
+                    'description': item['snippet']['description'],
+                    'channel_title': item['snippet']['channelTitle'],
+                    'published_at': item['snippet']['publishedAt'],
+                    'thumbnail_url': item['snippet']['thumbnails']['default']['url']
+                }
+                playlists.append(playlist)
+
+            return playlists
+
+        except Exception as e:
+            traceback.print_exc()
+            logger.error(f"Error discovering playlists: {str(e)}")
+            return []

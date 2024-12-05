@@ -11,6 +11,8 @@ import click
 
 from tabulate import tabulate
 
+from carver.feeds.youtube import YouTubePlaylistDiscovery
+
 from .item_manager import ItemManager
 from .artifact_manager import ArtifactManager
 from ..utils import *
@@ -381,3 +383,98 @@ def generate_bulk(ctx, entity_id: int, max_retries: int, last: Optional[str],
         traceback.print_exc()
         click.echo(f"Error: {str(e)}", err=True)
 
+
+
+def validate_choice(value):
+    valid_options = ['y','n', 'e', 'q']
+    if value.lower() not in valid_options:
+        raise click.BadParameter(f"Invalid choice: {value}. Please select from {', '.join(valid_options)}.")
+    return value.lower()
+
+@entity.command()
+@click.argument('entity_id', type=int)
+@click.argument('keywords', nargs=-1, required=True)
+@click.option('--what', required=True,
+              default='playlist',
+              type=click.Choice(['playlist', 'channel']))
+@click.option('--max-results', '-m', default=10, help='Maximum number of playlists to discover')
+@click.pass_context
+def discover_playlists(ctx, entity_id: int, keywords: tuple, what: str,
+                       max_results: int):
+    """Discover YouTube playlists based on keywords and create sources for the entity."""
+    db = ctx.obj['supabase']
+
+    try:
+        # Get entity
+        entity = db.entity_get(entity_id)
+        if not entity:
+            click.echo(f"Entity with ID {entity_id} not found", err=True)
+            return
+
+
+        discovery = YouTubePlaylistDiscovery()
+        query = ' '.join(keywords)
+
+        click.echo(f"Searching for playlists matching: {query}")
+        playlists = discovery.discover_playlists(query=query,
+                                                 what=what,
+                                                 max_results=max_results)
+
+        if not playlists:
+            click.echo("No playlists found matching your criteria")
+            return
+
+        click.echo(f"Found {len(playlists)} playlists")
+
+        for playlist in playlists:
+
+            prefix = "https://www.youtube.com"
+            if what == 'playlist':
+                url = f"{prefix}/playlist?list={playlist['id']}"
+            else:
+                url = f"{prefix}/channel/{playlist['id']}"
+
+            click.echo("\n" + "="*50)
+            click.echo(hyperlink(url, label=f"Playlist: {playlist['title']}"))
+            click.echo(f"Channel: {playlist['channel_title']}")
+            click.echo(f"Description: {playlist['description'][:200]}")
+            click.echo(f"Published: {playlist['published_at']}")
+
+            choice = click.prompt(
+                "Choose an option (yes, NO, exit)",
+                type=str,
+                default='N',
+                value_proc=validate_choice
+            )
+            if choice in ["e", "q", "quit", "exit"]:
+                break
+
+            if choice in ["y", "yes"]:
+                source_data = {
+                    'name': playlist['title'],
+                    'description': playlist['description'],
+                    'platform': 'youtube',
+                    'entity_id': entity_id,
+                    'active': True,
+                    'url': url,
+                    'source_type': 'playlist',
+                    'source_identifier': playlist['id'],
+                    'config': {
+                    },
+                    'analysis_metadata': {
+                        'channel': playlist['channel_title'],
+                        'published_at': playlist['published_at'],
+                        'thumbnail_url': playlist['thumbnail_url']
+                    }
+                }
+
+                # Create the source
+                source = db.source_create(source_data)
+                if source:
+                    click.echo(f"Created source ID: {source['id']} for playlist: {playlist['title']}")
+                else:
+                    click.echo("Error creating source", err=True)
+
+    except Exception as e:
+        traceback.print_exc()
+        click.echo(f"Error: {str(e)}", err=True)

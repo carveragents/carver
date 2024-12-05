@@ -16,7 +16,8 @@ __all__ = [
     'format_datetime',
     'parse_date_filter',
     'chunks',
-    'topological_sort'
+    'topological_sort',
+    'hyperlink'
 ]
 
 def get_supabase_client() -> Client:
@@ -44,6 +45,9 @@ def parse_date_filter(date_str: str) -> datetime:
     elif date_str.endswith('w'):
         weeks = int(date_str[:-1])
         return datetime.utcnow().replace(minute=0, second=0, microsecond=0) - timedelta(weeks=weeks)
+    elif date_str.endswith('m'):
+        months = int(date_str[:-1])
+        return datetime.utcnow().replace(minute=0, second=0, microsecond=0) - timedelta(weeks=months*4)
     else:
         return parser.parse(date_str)
 
@@ -94,3 +98,12 @@ def topological_sort(specs):
     return order
 
 
+def hyperlink(uri, label=None):
+    if label is None:
+        label = uri
+    parameters = ''
+
+    # OSC 8 ; params ; URI ST <name> OSC 8 ;; ST
+    escape_mask = '\033]8;{};{}\033\\{}\033]8;;\033\\'
+
+    return escape_mask.format(parameters, uri, label)
