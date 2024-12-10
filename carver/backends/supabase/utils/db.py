@@ -41,14 +41,16 @@ class SupabaseClient:
         return result.data[0] if result.data else None
 
     def entity_search(self,
-                     active: Optional[bool] = None,
-                     entity_type: Optional[str] = None,
-                     owner: Optional[str] = None,
-                     name: Optional[str] = None,
-                     created_since: Optional[datetime] = None,
-                     updated_since: Optional[datetime] = None) -> List[Dict[str, Any]]:
+                      active: Optional[bool] = None,
+                      entity_type: Optional[str] = None,
+                      owner: Optional[str] = None,
+                      name: Optional[str] = None,
+                      created_since: Optional[datetime] = None,
+                      updated_since: Optional[datetime] = None,
+                      fields: Optional[List[str]] = None) -> List[Dict[str, Any]]:
         """Search entities with various filters"""
-        query = self.client.table('carver_entity').select('*')
+        select_statement = ', '.join(fields) if fields else '*'
+        query = self.client.table('carver_entity').select(select_statement)
 
         if active is not None:
             query = query.eq('active', active)
@@ -65,6 +67,7 @@ class SupabaseClient:
 
         result = query.execute()
         return result.data
+
 
     def entity_create(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Create a new entity"""
@@ -89,16 +92,26 @@ class SupabaseClient:
         return result.data[0] if result.data else None
 
     def source_search(self,
-                     active: Optional[bool] = None,
-                     entity_id: Optional[int] = None,
-                     platform: Optional[str] = None,
-                     source_type: Optional[str] = None,
-                     name: Optional[str] = None,
-                     updated_since: Optional[datetime] = None,
-                     crawled_since: Optional[datetime] = None) -> List[Dict[str, Any]]:
+                      active: Optional[bool] = None,
+                      entity_id: Optional[int] = None,
+                      platform: Optional[str] = None,
+                      source_type: Optional[str] = None,
+                      name: Optional[str] = None,
+                      updated_since: Optional[datetime] = None,
+                      crawled_since: Optional[datetime] = None,
+                      fields: Optional[List[str]] = None) -> List[Dict[str, Any]]:
         """Search sources with various filters"""
-        query = self.client.table('carver_source') \
-            .select('*, carver_entity(*)')
+        # Build the select statement
+        if fields:
+            # If fields are specified but 'carver_entity' isn't in them, add it with basic fields
+            field_list = fields.copy()
+            if 'carver_entity' not in field_list:
+                field_list.append('carver_entity(id, name)')
+            select_statement = ', '.join(field_list)
+        else:
+            select_statement = '*, carver_entity(*)'
+
+        query = self.client.table('carver_source').select(select_statement)
 
         if active is not None:
             query = query.eq('active', active)
@@ -487,40 +500,35 @@ class SupabaseClient:
             raise
 
     def specification_search(self,
-                             source_id: Optional[int] = None,
-                             entity_id: Optional[int] = None,
-                             spec_id: Optional[int] = None,
-                             name: Optional[str] = None,
-                             active: Optional[bool] = None,
-                             created_since: Optional[datetime] = None,
-                             updated_since: Optional[datetime] = None,
-                             limit: int = 100,
-                             offset: int = 0) -> List[Dict[str, Any]]:
-        """
-        Search artifact specifications with filters
-
-        Args:
-           source_id: Filter by source ID
-           entity_id: Filter by entity ID (will return specs from all sources belonging to the entity)
-           spec_id: Filter by specification ID
-           name: Search in name and description
-           active: Filter by active status
-           created_since: Filter by creation date
-           updated_since: Filter by update date
-           limit: Maximum number of specifications to return
-           offset: Number of specifications to skip
-        """
+                          source_id: Optional[int] = None,
+                          entity_id: Optional[int] = None,
+                          spec_id: Optional[int] = None,
+                          name: Optional[str] = None,
+                          active: Optional[bool] = None,
+                          created_since: Optional[datetime] = None,
+                          updated_since: Optional[datetime] = None,
+                          limit: int = 100,
+                          offset: int = 0,
+                          fields: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+        """Search artifact specifications with filters"""
         try:
-            # Include carver_source and its related entity in the join
-            query = self.client.table('carver_artifact_specification') \
-                               .select('*, carver_source!inner(*, carver_entity(*))')
+            # Build select statement
+            if fields:
+                field_list = fields.copy()
+                # If fields are specified but related tables aren't included, add minimal fields
+                if 'carver_source' not in field_list:
+                    field_list.append('carver_source(id, name, carver_entity(id, name))')
+                select_statement = ', '.join(field_list)
+            else:
+                select_statement = '*, carver_source!inner(*, carver_entity(*))'
+
+            query = self.client.table('carver_artifact_specification').select(select_statement)
 
             if spec_id:
                 query = query.eq('id', spec_id)
             if source_id:
                 query = query.eq('source_id', source_id)
             if entity_id:
-                # Filter by entity_id through the source -> entity relationship
                 query = query.eq('carver_source.entity_id', entity_id)
             if name:
                 query = query.or_(f'name.ilike.%{name}%,description.ilike.%{name}%')
@@ -531,9 +539,7 @@ class SupabaseClient:
             if updated_since:
                 query = query.gte('updated_at', updated_since.isoformat())
 
-            # Add sorting and pagination
-            query = query.order('created_at', desc=True) \
-                         .range(offset, offset + limit - 1)
+            query = query.order('created_at', desc=True).range(offset, offset + limit - 1)
 
             result = query.execute()
             return result.data
@@ -626,16 +632,46 @@ class SupabaseClient:
                         active: Optional[bool] = None,
                         format: Optional[str] = None,
                         language: Optional[str] = None,
-                        modified_after: Optional[datetime] = None,  # Added time window filter
+                        modified_after: Optional[datetime] = None,
                         created_since: Optional[datetime] = None,
                         updated_since: Optional[datetime] = None,
                         artifact_ids: Optional[List[int]] = None,
                         limit: int = 100,
-                        offset: int = 0) -> List[Dict[str, Any]]:
-        """Search artifacts with various filters"""
+                        offset: int = 0,
+                        fields: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+        """
+        Search artifacts with various filters
+
+        Args:
+            spec_id: Filter by specification ID
+            item_id: Filter by item ID
+            artifact_type: Filter by artifact type
+            status: Filter by status
+            active: Filter by active status
+            format: Filter by format
+            language: Filter by language
+            modified_after: Filter by modification date
+            created_since: Filter by creation date
+            updated_since: Filter by update date
+            artifact_ids: Filter by specific artifact IDs
+            limit: Maximum number of results to return
+            offset: Number of results to skip
+            fields: Optional list of specific fields to return
+        """
         try:
-            query = self.client.table('carver_artifact') \
-                               .select('*, carver_artifact_specification(*), carver_item(name, title, description, content_type, content_identifier, url)')  # Added item info
+            # Build select statement
+            if fields:
+                field_list = fields.copy()
+                # If fields are specified but related tables aren't included, add minimal fields
+                if 'carver_artifact_specification' not in field_list:
+                    field_list.append('carver_artifact_specification(id, name)')
+                if 'carver_item' not in field_list:
+                    field_list.append('carver_item(id, name, title, content_identifier)')
+                select_statement = ', '.join(field_list)
+            else:
+                select_statement = '*, carver_artifact_specification(*), carver_item(name, title, description, content_type, content_identifier, url)'
+
+            query = self.client.table('carver_artifact').select(select_statement)
 
             if spec_id:
                 query = query.eq('spec_id', spec_id)
@@ -655,21 +691,20 @@ class SupabaseClient:
                 query = query.gte('created_at', created_since.isoformat())
             if updated_since:
                 query = query.gte('updated_at', updated_since.isoformat())
-            if modified_after:  # Added time window filter handling
+            if modified_after:
                 query = query.gte('updated_at', modified_after.isoformat())
             if artifact_ids:
                 query = query.in_('id', artifact_ids)
 
             # Add sorting and pagination
-            query = query.order('created_at', desc=True) \
-                         .range(offset, offset + limit - 1)
+            query = query.order('created_at', desc=True).range(offset, offset + limit - 1)
 
             result = query.execute()
             return result.data
+
         except Exception as e:
             logger.error(f"Error in artifact search: {str(e)}")
             raise
-
 
     def artifact_bulk_create(self, artifacts: List[Dict[str, Any]],
                           chunk_size: int = 100) -> List[Dict[str, Any]]:
@@ -697,27 +732,49 @@ class SupabaseClient:
 
         return created
 
+    def artifact_bulk_update_flag(self, artifact_ids: List[int],
+                                  active: bool) -> List[Dict[str, Any]]:
+
+        data = {'active': active }
+
+        response = self.client.table('carver_artifact')\
+                              .update(data)\
+                              .in_('id', artifact_ids)\
+                              .execute()
+
+        return response.data
+
+
     def artifact_bulk_update(self, artifacts: List[Dict[str, Any]],
-                          chunk_size: int = 100) -> List[Dict[str, Any]]:
-        """Bulk update artifacts with automatic chunking"""
+                            chunk_size: int = 100) -> List[Dict[str, Any]]:
+        """
+        Bulk update artifacts with automatic chunking.
+        Only updates the specified fields for each artifact using raw SQL.
+
+        Args:
+            artifacts: List of dicts, each containing 'id' and fields to update
+            chunk_size: Number of artifacts to update in each batch
+        """
         updated = []
 
         # Validate all artifacts have IDs
         if not all('id' in a for a in artifacts):
             raise ValueError("All artifacts must have 'id' field for bulk update")
-
         for chunk in chunks(artifacts, chunk_size):
             try:
                 result = self.client.table('carver_artifact') \
-                    .upsert(chunk) \
-                    .execute()
+                                    .upsert(chunk) \
+                                    .execute()
+
                 if result.data:
                     updated.extend(result.data)
+
             except Exception as e:
                 logger.error(f"Error in bulk update artifacts: {str(e)}")
                 continue
 
         return updated
+
 
     def artifact_bulk_update_status(self, artifact_ids: List[int],
                                  status: str,

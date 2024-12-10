@@ -5,6 +5,7 @@ import json
 from typing import List, Dict, Any
 from collections import defaultdict
 from datetime import datetime, timedelta
+import importlib.util
 
 from supabase import create_client, Client
 from dateutil import parser
@@ -17,7 +18,8 @@ __all__ = [
     'parse_date_filter',
     'chunks',
     'topological_sort',
-    'hyperlink'
+    'hyperlink',
+    'get_spec_config'
 ]
 
 def get_supabase_client() -> Client:
@@ -107,3 +109,44 @@ def hyperlink(uri, label=None):
     escape_mask = '\033]8;{};{}\033\\{}\033]8;;\033\\'
 
     return escape_mask.format(parameters, uri, label)
+
+
+def get_spec_config(path: str) -> Any:
+    """
+    Load a Python/json file and return config
+
+    Args:
+        file_path: Path to the Python file
+
+    Returns:
+        The loaded module
+    """
+
+    if path is None or not os.path.exists(path):
+        raise Exception("Invalid/missing config file: {path}")
+
+    # Handle json
+    if path.lower().endswith(".json"):
+        return json.load(open(path))
+
+    if not path.lower().endswith(".py"):
+        raise Exception("Unsupported file format")
+
+    # Get absolute path
+    abs_path = os.path.abspath(path)
+
+    # Get module name from file name
+    module_name = os.path.splitext(os.path.basename(path))[0]
+
+    # Load the module specification
+    spec = importlib.util.spec_from_file_location(module_name, abs_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Could not load spec for module {module_name} from {abs_path}")
+
+    # Create the module
+    module = importlib.util.module_from_spec(spec)
+
+    # Execute the module
+    spec.loader.exec_module(module)
+
+    return module.get_config()

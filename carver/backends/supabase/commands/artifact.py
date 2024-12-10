@@ -10,7 +10,7 @@ import click
 
 from tabulate import tabulate
 
-from ..utils import format_datetime, parse_date_filter
+from ..utils import format_datetime, parse_date_filter, get_spec_config
 from .artifact_manager import ArtifactManager
 
 @click.group()
@@ -31,14 +31,13 @@ def spec(ctx):
 @click.option('--source-id', required=True, type=int, help='Source ID')
 @click.option('--name', required=True, help='Specification name')
 @click.option('--description', help='Specification description')
-@click.option('--config', required=True, type=click.Path(exists=True), help='Path to JSON config file')
+@click.option('--config', required=True, type=click.Path(exists=True), help='Path to JSON/py config file')
 @click.pass_context
 def add(ctx, source_id: int, name: str, description: Optional[str], config: str):
     """Add a new artifact specification."""
     manager = ctx.obj['manager']
     try:
-        with open(config, 'r') as f:
-            config_data = json.load(f)
+        config_data = get_spec_config(config)
 
         db = ctx.obj['supabase']
         source = db.source_get(source_id)
@@ -187,8 +186,7 @@ def update(ctx, spec_id: int, source_id: Optional[int],
         if active is not None:
             update_data['active'] = active
         if config:
-            with open(config, 'r') as f:
-                config_data = json.load(f)
+            config_data = get_spec_config(config)
             update_data['config'] = config_data
 
         if not update_data:
@@ -572,7 +570,7 @@ def search(ctx, spec_id: Optional[int], item_id: Optional[int],
                                 value += "    " + l + "\n"
                         else:
                             newline = " "
-                        f.write(f"[{label.upper()[:15]:15}] {newline}{value}\n")
+                        f.write(f"[{label.upper()[:20]:15}] {newline}{value}\n")
                     f.write("\n")
 
         click.echo(f"Successfully dumped {len(artifacts)} artifacts to {output_file}")
@@ -600,14 +598,15 @@ def update_status(ctx, spec_id: int, artifacts: str, status: str):
 
 @content.command()
 @click.option('--spec-id', required=True, type=int, help='Specification ID')
-@click.option('--artifacts', required=True, help='Comma-separated list of artifact IDs')
+@click.option('--artifacts', required=False, help='Comma-separated list of artifact IDs')
 @click.pass_context
 def activate(ctx, spec_id: int, artifacts: str):
     """Activate multiple artifacts."""
     manager = ctx.obj['manager']
     try:
-        artifact_ids = [int(i.strip()) for i in artifacts.split(',')]
-        updated = manager.artifact_bulk_active_update(spec_id, artifact_ids, True)
+        if artifacts:
+            artifacts = [int(i.strip()) for i in artifacts.split(',')]
+        updated = manager.artifact_bulk_activate(spec_id, artifacts)
         click.echo(f"Activated {len(updated)} artifacts")
     except Exception as e:
         traceback.print_exc()
@@ -615,14 +614,16 @@ def activate(ctx, spec_id: int, artifacts: str):
 
 @content.command()
 @click.option('--spec-id', required=True, type=int, help='Specification ID')
-@click.option('--artifacts', required=True, help='Comma-separated list of artifact IDs')
+@click.option('--artifacts', required=False, help='Comma-separated list of artifact IDs')
 @click.pass_context
 def deactivate(ctx, spec_id: int, artifacts: str):
     """Deactivate multiple artifacts."""
     manager = ctx.obj['manager']
     try:
-        artifact_ids = [int(i.strip()) for i in artifacts.split(',')]
-        updated = manager.artifact_bulk_active_update(spec_id, artifact_ids, False)
+
+        if artifacts is not None:
+            artifacts = [int(i.strip()) for i in artifacts.split(',')]
+        updated = manager.artifact_bulk_deactivate(spec_id, artifacts)
         click.echo(f"Deactivated {len(updated)} artifacts")
     except Exception as e:
         traceback.print_exc()

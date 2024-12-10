@@ -3,12 +3,15 @@ import sys
 import json
 import traceback
 import time
+import logging
 
 from typing import List, Dict, Any, Optional, Type
 from datetime import datetime
 from abc import ABC, abstractmethod
 
 from carver.generators import ArtifactGeneratorFactory
+
+logger = logging.getLogger(__name__)
 
 class ArtifactManager:
     """Manages artifact and specification operations"""
@@ -138,7 +141,6 @@ class ArtifactManager:
 
         return created
 
-
     def artifact_regenerate(self, artifact_id: int) -> Dict[str, Any]:
         """Regenerate a single artifact"""
         # Get existing artifact
@@ -171,36 +173,112 @@ class ArtifactManager:
     ##########################################################
     # Artifact Update Methods
     ##########################################################
-    def artifact_bulk_status_update(self, spec_id: int, artifact_ids: List[int],
-                                  status: str) -> List[Dict[str, Any]]:
-        """Update status for multiple artifacts"""
-        # Validate artifacts belong to specification
-        artifacts = self.db.artifact_list(
-            spec_id=spec_id,
-            artifact_ids=artifact_ids
-        )
+    def artifact_bulk_update_status(self, status: str,
+                                 spec_id: Optional[int] = None,
+                                 artifact_ids: Optional[List[int]] = None,
+                                 metadata: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """
+        Update status and optional metadata for multiple artifacts
+        Can target artifacts either by direct IDs or by specification ID
 
-        if not artifacts:
-            return []
+        Args:
+            status: New status to set
+            spec_id: Optional specification ID to target all its artifacts
+            artifact_ids: Optional list of specific artifact IDs to update
+            metadata: Optional metadata to update
+        """
+        try:
+            # If no artifact_ids provided, get them from spec_id
+            if not artifact_ids and spec_id:
+                results = self.artifact_search(
+                    spec_id=spec_id,
+                    active=True,
+                    fields=['id']
+                )
+                artifact_ids = [r['id'] for r in results]
 
-        found_ids = {a['id'] for a in artifacts}
-        invalid_ids = set(artifact_ids) - found_ids
-        if invalid_ids:
-            raise ValueError(
-                f"Artifacts {invalid_ids} either don't exist or don't belong to specification {spec_id}"
-            )
+            if not artifact_ids:
+                logger.warning("No artifacts found to update status")
+                return []
 
-        return self.db.artifact_bulk_status_update(artifact_ids, status)
+            update_data = {
+                'status': status,
+                'updated_at': datetime.utcnow().isoformat()
+            }
+            if metadata:
+                update_data['analysis_metadata'] = metadata
 
-    def artifact_bulk_active_update(self, spec_id: int, artifact_ids: List[int],
-                                  active: bool) -> List[Dict[str, Any]]:
-        """Update active status for multiple artifacts"""
-        updates = [{
-            'id': artifact_id,
-            'active': active,
-        } for artifact_id in artifact_ids]
+            updates = [{
+                'id': artifact_id,
+                **update_data
+            } for artifact_id in artifact_ids]
 
-        return self.db.artifact_bulk_update(updates)
+            return self.artifact_bulk_update(updates)
+        except Exception as e:
+            logger.error(f"Error in bulk update artifact status: {str(e)}")
+            raise
+
+    def artifact_bulk_activate(self,
+                            spec_id: Optional[int] = None,
+                            artifact_ids: Optional[List[int]] = None) -> List[Dict[str, Any]]:
+        """
+        Activate multiple artifacts by specification ID or specific artifact IDs
+
+        Args:
+            spec_id: Optional specification ID to target all its artifacts
+            artifact_ids: Optional list of specific artifact IDs to activate
+        """
+        try:
+            # If no artifact_ids provided, get them from spec_id
+            if not artifact_ids and spec_id:
+                results = self.artifact_search(
+                    spec_id=spec_id,
+                    active=False,  # Only get inactive artifacts
+                    fields=['id']
+                )
+                artifact_ids = [r['id'] for r in results]
+
+            if not artifact_ids:
+                logger.warning("No artifacts found to activate")
+                return []
+
+            updates = [{
+                'id': artifact_id,
+                'active': True,
+                'updated_at': datetime.utcnow().isoformat()
+            } for artifact_id in artifact_ids]
+
+            return self.artifact_bulk_update(updates)
+        except Exception as e:
+            logger.error(f"Error in bulk activate artifacts: {str(e)}")
+            raise
+
+    def artifact_bulk_deactivate(self,
+                              spec_id: Optional[int] = None,
+                              artifact_ids: Optional[List[int]] = None) -> List[Dict[str, Any]]:
+        """
+        Deactivate multiple artifacts by specification ID or specific artifact IDs
+
+        Args:
+            spec_id: Optional specification ID to target all its artifacts
+            artifact_ids: Optional list of specific artifact IDs to deactivate
+        """
+        try:
+            # If no artifact_ids provided, get them from spec_id
+            if not artifact_ids and spec_id:
+                results = self.db.artifact_search(
+                    spec_id=spec_id,
+                    active=True,  # Only get active artifacts
+                    limit=1000,
+                    fields=['id']
+                )
+                artifact_ids = [r['id'] for r in results]
+
+            return self.db.artifact_bulk_update_flag(artifact_ids, False)
+
+        except Exception as e:
+            logger.error(f"Error in bulk deactivate artifacts: {str(e)}")
+            raise
 
     def artifact_metrics_update(self, artifact_id: int, metrics: Dict[str, Any],
                               replace: bool = False) -> Dict[str, Any]:
