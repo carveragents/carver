@@ -178,7 +178,7 @@ class YouTubeChannelReader(YouTubeReader):
                 request_max = min(50, remaining_results) if remaining_results else 50
 
                 request = self.youtube.search().list(
-                    part='id,snippet,contentDetails',
+                    part='id,snippet',
                     channelId=channel_id,
                     order='date',
                     type='video',  # Only get videos
@@ -212,6 +212,7 @@ class YouTubeChannelReader(YouTubeReader):
                     break
 
             except Exception as e:
+                traceback.print_exc()
                 logger.error(f"Error reading YouTube channel: {str(e)}")
                 break
 

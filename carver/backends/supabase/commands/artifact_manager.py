@@ -9,6 +9,7 @@ from typing import List, Dict, Any, Optional, Type
 from datetime import datetime
 from abc import ABC, abstractmethod
 
+from carver.llm import get_embedding
 from carver.generators import ArtifactGeneratorFactory
 
 logger = logging.getLogger(__name__)
@@ -72,10 +73,10 @@ class ArtifactManager:
         """Generate artifacts for multiple items using a specification"""
 
         if not spec:
-            raise ValueError(f"Specification {spec_id} not found")
+            raise ValueError(f"Specification not found")
 
         if not spec['active']:
-            raise ValueError(f"Specification {spec_id} is not active")
+            raise ValueError(f"Specification {spec['id']} is not active")
 
         if generator_name is not None:
             if spec['config'].get('generator') != generator_name:
@@ -102,6 +103,13 @@ class ArtifactManager:
                     print(f"[{idx}] Adding", (item['id'], spec['id'], artifact_data['generator_name'],
                                      artifact_data['generator_id']))
 
+                    # Generate embedding for content
+                    try:
+                        content_embedding = get_embedding(artifact_data['content'])
+                    except Exception as e:
+                        print(f"Error generating embedding: {str(e)}")
+                        content_embedding = None
+
                     artifact = {
                         'active': True,
                         'spec_id': spec['id'],
@@ -113,6 +121,7 @@ class ArtifactManager:
                         'artifact_type':  artifact_data['artifact_type'],
                         'description':    artifact_data.get('description'),
                         'content':        artifact_data['content'],
+                        'content_embedding': content_embedding,
                         'format':         artifact_data.get('format', 'text'),
                         'language':       artifact_data.get('language', 'en'),
                         'status':         'draft',
@@ -174,9 +183,9 @@ class ArtifactManager:
     # Artifact Update Methods
     ##########################################################
     def artifact_bulk_update_status(self, status: str,
-                                 spec_id: Optional[int] = None,
-                                 artifact_ids: Optional[List[int]] = None,
-                                 metadata: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+                                    spec_id: Optional[int] = None,
+                                    artifact_ids: Optional[List[int]] = None,
+                                    metadata: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """
         Update status and optional metadata for multiple artifacts
         Can target artifacts either by direct IDs or by specification ID
@@ -306,3 +315,106 @@ class ArtifactManager:
             limit=max_results or 1000
         )
 
+
+    def artifact_bulk_update_embeddings(self,
+                                        artifacts: List[Dict[str, Any]],
+                                        force_update: bool = False,
+                                        max_content_size: int = 8192,
+                                        batch_size: int = 100) -> Dict[str, int]:
+        """
+        Update embeddings for a list of artifacts
+
+        Args:
+            artifacts: List of artifacts to update
+            force_update: If True, update even if embedding exists
+            batch_size: Size of batches for updates
+            max_content_size: Size of each piece of text
+
+        Returns:
+            Dict with counts of processed, updated, and error artifacts
+        """
+        try:
+            if not artifacts:
+                return {'processed': 0, 'updated': 0, 'errors': 0}
+
+            total_processed = 0
+            total_updated = 0
+            total_errors = 0
+
+            # Process in batches
+            for i in range(0, len(artifacts), batch_size):
+                batch = artifacts[i:i + batch_size]
+                batch_updates = []
+
+                for artifact in batch:
+                    try:
+                        # Skip if already has embedding and not force updating
+                        if not force_update and artifact.get('content_embedding'):
+                            continue
+
+                        if not artifact.get('content'):
+                            logger.warning(f"Artifact {artifact['id']} has no content to embed")
+                            total_errors += 1
+                            continue
+
+                        # Generate embedding
+                        embedding = get_embedding(artifact['content'][:max_content_size])
+
+                        batch_updates.append({
+                            'id': artifact['id'],
+                            'content_embedding': embedding,
+                            'updated_at': datetime.utcnow().isoformat()
+                        })
+
+                    except Exception as e:
+                        logger.error(f"Error processing artifact {artifact['id']}: {str(e)}")
+                        total_errors += 1
+                        continue
+
+                print("Computed. Posting batch", i, i+batch_size)
+                # Bulk update the batch
+                if batch_updates:
+                    try:
+                        self.db.artifact_bulk_update(batch_updates)
+                        total_updated += len(batch_updates)
+                    except Exception as e:
+                        traceback.print_exc()
+                        logger.error(f"Error updating batch: {str(e)}")
+                        total_errors += len(batch_updates)
+
+                total_processed += len(batch)
+                print("Completed batch", i, i+batch_size)
+
+            return {
+                'processed': total_processed,
+                'updated': total_updated,
+                'errors': total_errors
+            }
+
+        except Exception as e:
+            logger.error(f"Error in bulk update embeddings: {str(e)}")
+            raise
+
+    def artifact_search_similar(self,
+                                query: str,
+                                match_threshold: float = 0.7,
+                                match_count: int = 10,
+                                spec_id: Optional[int] = None,
+                                status: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Search for similar artifacts using text query"""
+        try:
+            # Generate embedding for query
+            query_embedding = get_embedding(query)
+
+            # Search using embedding
+            return self.db.artifact_search_similar(
+                query_embedding,
+                match_threshold=match_threshold,
+                match_count=match_count,
+                spec_id=spec_id,
+                status=status
+            )
+
+        except Exception as e:
+            print(f"Error in similarity search: {str(e)}")
+            raise

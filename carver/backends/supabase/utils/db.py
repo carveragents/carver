@@ -7,9 +7,9 @@ from datetime import datetime
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 
-from decouple import Config, RepositoryIni
-from supabase import create_client, Client
+from psycopg2.pool import SimpleConnectionPool
 
+from carver.utils import get_config
 from .helpers import get_supabase_client, chunks
 
 logger = logging.getLogger(__name__)
@@ -30,6 +30,24 @@ class SupabaseClient:
     def _initialize(self):
         """Initialize Supabase client using credentials from config file."""
         self.client = get_supabase_client()
+
+    def open_connection(self):
+        """Initialize database connection pool"""
+        config = get_config()
+        self.pool = SimpleConnectionPool(
+            minconn=1,
+            maxconn=10,
+            dbname=config('SUPABASE_DBNAME'),
+            user=config('SUPABASE_USER'),
+            password=config('SUPABASE_PASSWORD'),
+            host=config('SUPABASE_HOST'),
+            port=config('SUPABASE_PORT', default=5432)
+        )
+
+    def close_connection(self):
+        """Clean up database connections"""
+        if hasattr(self, 'pool'):
+            self.pool.closeall()
 
     # Entity methods
     def entity_get(self, entity_id: int) -> Dict[str, Any]:
@@ -118,9 +136,9 @@ class SupabaseClient:
         if entity_id:
             query = query.eq('entity_id', entity_id)
         if platform:
-            query = query.eq('platform', platform)
+            query = query.ilike('platform', platform)
         if source_type:
-            query = query.eq('source_type', source_type)
+            query = query.ilike('source_type', source_type)
         if name:
             query = query.ilike('name', f'%{name}%')
         if updated_since:
@@ -632,6 +650,7 @@ class SupabaseClient:
                         active: Optional[bool] = None,
                         format: Optional[str] = None,
                         language: Optional[str] = None,
+                        has_embedding: Optional[bool] = None,
                         modified_after: Optional[datetime] = None,
                         created_since: Optional[datetime] = None,
                         updated_since: Optional[datetime] = None,
@@ -687,6 +706,11 @@ class SupabaseClient:
                 query = query.eq('format', format)
             if language:
                 query = query.eq('language', language)
+            if has_embedding is not None:
+                if has_embedding:
+                    query = query.not_.is_('content_embedding', None)
+                else:
+                    query = query.is_('content_embedding', None)
             if created_since:
                 query = query.gte('created_at', created_since.isoformat())
             if updated_since:
@@ -745,8 +769,8 @@ class SupabaseClient:
         return response.data
 
 
-    def artifact_bulk_update(self, artifacts: List[Dict[str, Any]],
-                            chunk_size: int = 100) -> List[Dict[str, Any]]:
+    def artifact_bulk_update_chunked(self, artifacts: List[Dict[str, Any]],
+                                     chunk_size: int = 100) -> List[Dict[str, Any]]:
         """
         Bulk update artifacts with automatic chunking.
         Only updates the specified fields for each artifact using raw SQL.
@@ -760,25 +784,98 @@ class SupabaseClient:
         # Validate all artifacts have IDs
         if not all('id' in a for a in artifacts):
             raise ValueError("All artifacts must have 'id' field for bulk update")
+
         for chunk in chunks(artifacts, chunk_size):
             try:
-                result = self.client.table('carver_artifact') \
-                                    .upsert(chunk) \
-                                    .execute()
-
-                if result.data:
-                    updated.extend(result.data)
-
+                result = self.artifact_bulk_update(self, chunk)
             except Exception as e:
                 logger.error(f"Error in bulk update artifacts: {str(e)}")
                 continue
 
         return updated
 
+    def artifact_bulk_update(self, artifacts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Bulk update artifacts using direct SQL connection
+
+        Args:
+            artifacts: List of dicts containing updates. Each dict must have 'id'
+            update_columns: Optional list of columns to update
+        """
+        try:
+            if not artifacts or len(artifacts) == 0:
+                return []
+
+            conn = None
+
+            update_columns = [col for col in list(artifacts[0].keys()) if col not in ['id']]
+
+            # Convert embeddings to list format
+            updates = []
+            for artifact in artifacts:
+                update_dict = {'id': artifact['id']}
+                for key, value in artifact.items():
+                    if key == 'id':
+                        continue
+                    if isinstance(value, (list)):
+                        update_dict[key] = [float(x) for x in value]
+                    else:
+                        update_dict[key] = value
+                updates.append(update_dict)
+
+            # Build the SQL query
+            sql = f"""
+            UPDATE carver_artifact t
+            SET {', '.join(f"{col} = v.{col}" for col in update_columns)}
+            FROM (
+                SELECT
+                    v.*
+                FROM jsonb_to_recordset(%s)
+                AS v(
+                    id bigint,
+                    {', '.join(
+                        f"{col} vector(1536)" if col == 'content_embedding'
+                        else f"{col} timestamp with time zone" if col == 'updated_at'
+                        else f"{col} text"
+                        for col in update_columns
+                    )}
+                )
+            ) v
+            WHERE t.id = v.id
+            RETURNING t.*
+            """
+
+            # Execute using psycopg2
+            if not hasattr(self, 'pool'):
+                self.open_connection()
+
+            conn = self.pool.getconn()
+            with conn.cursor() as cur:
+                cur.execute(sql, (json.dumps(updates),))
+                results = cur.fetchall()
+
+                # Get column names from cursor description
+                columns = [desc[0] for desc in cur.description]
+
+                # Convert results to dicts
+                return_data = [dict(zip(columns, row)) for row in results]
+
+            conn.commit()
+            return return_data
+        except:
+            if conn:
+                conn.rollback()
+            logger.error(f"Error in bulk update artifacts: {str(e)}")
+            raise
+
+        finally:
+            # Always return the connection to the pool
+            if conn:
+                self.pool.putconn(conn)
 
     def artifact_bulk_update_status(self, artifact_ids: List[int],
-                                 status: str,
-                                 metadata: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+                                    status: str,
+                                    metadata: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """Update status and optional metadata for multiple artifacts"""
         try:
             update_data = {
@@ -825,8 +922,8 @@ class SupabaseClient:
             raise
 
     def artifact_update_metrics(self, artifact_id: int,
-                             metrics: Dict[str, Any],
-                             replace: bool = False) -> Dict[str, Any]:
+                                metrics: Dict[str, Any],
+                                replace: bool = False) -> Dict[str, Any]:
         """Update artifact metrics, either merging or replacing existing metrics"""
         try:
             current = self.artifact_get(artifact_id)
@@ -853,4 +950,32 @@ class SupabaseClient:
             return result.data[0] if result.data else None
         except Exception as e:
             logger.error(f"Error updating artifact metrics: {str(e)}")
+            raise
+
+    def artifact_search_similar(self,
+                              query_embedding: List[float],
+                              match_threshold: float = 0.7,
+                              match_count: int = 10,
+                              spec_id: Optional[int] = None,
+                              source_id: Optional[int] = None,
+                              status: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Search for similar artifacts using vector similarity"""
+        try:
+            # Call the match_artifacts function with source_id
+            result = self.client.rpc(
+                'match_artifacts',
+                {
+                    'query_embedding': query_embedding,
+                    'match_threshold': match_threshold,
+                    'match_count': match_count,
+                    'filter_spec_id': spec_id,
+                    'filter_source_id': source_id,
+                    'filter_status': status
+                }
+            ).execute()
+
+            return result.data if result.data else []
+
+        except Exception as e:
+            logger.error(f"Error in similarity search: {str(e)}")
             raise

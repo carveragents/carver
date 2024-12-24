@@ -118,9 +118,9 @@ def update(ctx, source_id: int, activate: bool, deactivate: bool,
         if description:
             update_data['description'] = description
         if platform:
-            update_data['platform'] = platform
+            update_data['platform'] = platform.strip().upper()
         if source_type:
-            update_data['source_type'] = source_type
+            update_data['source_type'] = source_type.strip().upper()
         if source_identifier:
             update_data['source_identifier'] = source_identifier
         if url:

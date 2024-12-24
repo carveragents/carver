@@ -478,3 +478,166 @@ def discover_playlists(ctx, entity_id: int, keywords: tuple, what: str,
     except Exception as e:
         traceback.print_exc()
         click.echo(f"Error: {str(e)}", err=True)
+
+@entity.command("search-similar")
+@click.argument('entity_id', type=int)
+@click.argument('query', type=str)
+@click.option('--threshold', type=float, default=0.7, help='Similarity threshold')
+@click.option('--limit', type=int, default=10, help='Maximum results to return')
+@click.pass_context
+def search_similar(ctx, entity_id: int, query: str, threshold: float, limit: int):
+    """Search for similar artifacts across all sources in an entity."""
+    db = ctx.obj['supabase']
+    artifact_manager = ctx.obj['artifact_manager']
+
+    try:
+        # Get all specs for the entity
+        specs = db.specification_search(
+            entity_id=entity_id,
+            active=True
+        )
+
+        if not specs:
+            click.echo("No active specifications found for entity")
+            return
+
+        specmap = {spec['id']: spec for spec in specs}
+
+        # Search across all specs
+        all_results = []
+        for spec in specs:
+            print(f"[{spec['name']}] Searching")
+            results = artifact_manager.artifact_search_similar(
+                query=query,
+                match_threshold=threshold,
+                match_count=limit,
+                spec_id=spec['id']
+            )
+            all_results.extend(results)
+            print(f"[{spec['name']}] Found {len(results)} Total {len(all_results)}")
+
+        # Sort by similarity and limit
+        all_results.sort(key=lambda x: x['similarity'], reverse=True)
+
+        if all_results:
+            headers = ['ID', 'Source', 'Spec', 'Title', 'Type', 'Similarity']
+            rows = [[
+                r['id'],
+                specmap[r['spec_id']]['carver_source']['name'],
+                specmap[r['spec_id']]['name'],
+                r['title'],
+                r['artifact_type'],
+                f"{r['similarity']:.3f}"
+            ] for r in all_results]
+
+            click.echo(tabulate(rows, headers=headers, maxcolwidths=[None, 20, 20, 40,None, None]))
+            click.echo(f"\nTotal results: {len(all_results)}")
+        else:
+            click.echo("No similar artifacts found")
+
+    except Exception as e:
+        traceback.print_exc()
+        click.echo(f"Error: {str(e)}", err=True)
+
+@entity.command('update-embeddings')
+@click.argument('entity_id', type=int)
+@click.option('--batch-size', default=100, type=int, help='Number of artifacts to process in each batch')
+@click.option('--status', help='Filter by artifact status')
+@click.option('--force/--no-force', default=False, help='Update even if embedding exists')
+@click.option('--dry-run/--no-dry-run', default=False, help='Show what would be updated without making changes')
+@click.option('--last', type=str, help='Filter items by time (e.g. "1d", "2h", "30m")')
+@click.option('--offset', default=0, type=int, help='Offset for search results')
+@click.option('--limit', default=50, type=int, help='Maximum number of items to fetch')
+@click.pass_context
+def update_embeddings(ctx, entity_id: int, batch_size: int, status: Optional[str],
+                      force: bool, dry_run: bool,
+                      last: Optional[str], offset: int, limit: int):
+    """
+    Bulk update embeddings for all artifacts under an entity's sources.
+
+    Example:
+    carver entity update-embeddings 123 --batch-size 50 --status published
+    """
+    db = ctx.obj['supabase']
+    artifact_manager = ctx.obj['artifact_manager']
+
+    try:
+        # Get the entity first
+        entity = db.entity_get(entity_id)
+        if not entity:
+            click.echo(f"Entity {entity_id} not found", err=True)
+            return
+
+        click.echo(f"\nProcessing embeddings for entity: {entity['name']}")
+
+        # Get all active specifications for the entity's sources
+        specs = db.specification_search(
+            entity_id=entity_id,
+            active=True
+        )
+
+        if not specs:
+            click.echo("No active specifications found for entity")
+            return
+
+        click.echo(f"Found {len(specs)} active specifications")
+
+        total_processed = 0
+        total_updated = 0
+        total_errors = 0
+
+        time_filter = parse_date_filter(last) if last else None
+
+        # Process each specification
+        for spec in specs:
+            print(f"[{spec['name']}] Source: {spec['carver_source']['name']}")
+            print(f"[{spec['name']}] Started processing")
+            # Get artifacts without embeddings for this spec
+            artifacts = db.artifact_search(
+                    spec_id=spec['id'],
+                    status=status,
+                    active=True,
+                    modified_after=time_filter,
+                    offset=offset,
+                    limit=limit,
+                    has_embedding=False if not force else None
+                )
+            if len(artifacts) == 0:
+                print("[{spec['name']}] Found no artifacts to process")
+                continue
+
+            print(f"[{spec['name']}] Updating {len(artifacts)}")
+
+            if dry_run:
+                print(f"[{spec['name']}] Dry-run. Done")
+                continue
+
+            try:
+                # Update embeddings for this batch
+                result = artifact_manager.artifact_bulk_update_embeddings(
+                    artifacts=artifacts,
+                    force_update=force,
+                    batch_size=batch_size
+                )
+
+                total_processed += result['processed']
+                total_updated += result['updated']
+                total_errors += result['errors']
+
+            except Exception as e:
+                click.echo(f"Error processing batch: {str(e)}", err=True)
+                total_errors += len(batch)
+
+        # Print summary
+        click.echo("\nEmbedding Update Summary")
+        click.echo("=====================")
+        click.echo(f"Total artifacts processed: {total_processed}")
+        click.echo(f"Successfully updated: {total_updated}")
+        click.echo(f"Errors: {total_errors}")
+
+        if dry_run:
+            click.echo("\nThis was a dry run - no changes were made")
+
+    except Exception as e:
+        traceback.print_exc()
+        click.echo(f"Error updating embeddings: {str(e)}", err=True)

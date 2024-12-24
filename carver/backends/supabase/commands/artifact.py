@@ -509,6 +509,7 @@ def search(ctx, spec_id: Optional[int], item_id: Optional[int],
                 'content': art['content'],
                 'status': art['status'],
                 'version': art['version'],
+                'embedding': "Y" if art['content_embedding'] is not None else "N",
                 'active': art['active'],
                 'created_at': format_datetime(art['created_at'])
             }
@@ -516,22 +517,23 @@ def search(ctx, spec_id: Optional[int], item_id: Optional[int],
 
         # Display results in table format
         if not dump_format:
-            click.echo("Notes: V=version, A=Active, Type=Artifact Type")
+            click.echo("Notes: V=version, A=Active, Type=Artifact Type, E=Embedding")
             table_rows = [[
                 r['id'],
                 r['specification'],
                 r['item_id'],
                 r['artifact_type'],
                 r['generator'],
-                r['title'][:30] + ('...' if len(r['title']) > 30 else ''),
+                r['title'][:20] + ('...' if len(r['title']) > 20 else ''),
                 r['status'],
                 r['version'],
+                r['embedding'],
                 '✓' if r['active'] else '✗',
                 r['created_at']
             ] for r in rows]
 
             headers = ['ID', 'Spec', "ItemID", 'Type', "Generator:ID",
-                      'Title', 'Status', 'V', 'A', 'Created']
+                       'Title', 'Status', 'V', 'E','A', 'Created']
 
             click.echo(tabulate(table_rows, headers=headers, tablefmt=output_format))
             click.echo(f"\nTotal artifacts: {len(artifacts)}")

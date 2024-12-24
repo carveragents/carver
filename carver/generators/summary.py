@@ -10,7 +10,7 @@ from datetime import datetime
 from carver.utils import flatten
 
 from .base import BaseArtifactGenerator
-from .llm import *
+from ..llm import *
 
 logger = logging.getLogger(__name__)
 
@@ -132,6 +132,10 @@ of different outputs that you must generate based on the instructions
 
         new_artifacts = []
         artifact_type = "SUMMARY"
+
+        # Restrict the length of the transcript
+        limit = config.get('prompt_limit', 8192)
+        transcript = transcript[:limit-len(system_prompt)]
 
         try:
 
