@@ -328,7 +328,8 @@ def generate_bulk(ctx, entity_id: int, max_retries: int, last: Optional[str],
 
             sample_spec = list(source_specs.values())[0]
             source = sample_spec['carver_source']
-            click.echo(f"\nProcessing source ID: {source_id} {source['name']}")
+            label = f"[{source_id}] {source['name']}"
+            click.echo(f"\n{label}: Started processing")
 
             # Get items needing artifacts
             time_filter = parse_date_filter(last) if last else None
@@ -343,7 +344,7 @@ def generate_bulk(ctx, entity_id: int, max_retries: int, last: Optional[str],
                 click.echo(f"No items found requiring artifact generation for source {source_id}")
                 continue
 
-            click.echo(f"Found {len(items)} items to process")
+            click.echo(f"{label}: Found {len(items)} items with artifacts")
 
             # Process specifications for this source
             for spec_id in sorted_specs_ids:
@@ -352,14 +353,13 @@ def generate_bulk(ctx, entity_id: int, max_retries: int, last: Optional[str],
 
                 spec = source_specs[spec_id]
                 source = spec['carver_source']
-                click.echo(f"\nProcessing Spec ID: {source['name']}:{spec_id} {spec['name']}")
+                click.echo(f"\n{label}: Processing Specification [{spec_id}] {spec['name']}")
 
                 retry_count = 0
                 success = False
 
                 while retry_count < max_retries and not success:
                     try:
-                        click.echo(f"\nProcessing specification: {spec['name']} (ID: {spec['id']})")
                         results = artifact_manager.artifact_bulk_create_from_spec(spec,
                                                                                   items,
                                                                                   None)

@@ -37,3 +37,7 @@ class BaseArtifactGenerator(ABC):
             raise ValueError(f"Unsupported source type: {source['source_type']}")
 
         return all(k in config for k in self.required_config)
+
+    def get_ids(self, config: Dict[str, Any]):
+        raise Exception("To be implemented by subclass")
+

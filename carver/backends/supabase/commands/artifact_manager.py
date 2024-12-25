@@ -86,22 +86,49 @@ class ArtifactManager:
 
         # Now run the generator...
         generator = ArtifactGeneratorFactory.get_generator(generator_name)
+        generator_ids = generator.get_ids(spec['config'])
 
         artifacts_to_create = []
         errors = []
+        newartifacts = False
+        completelist = set()
+        created = []
+
+        for idx, item in enumerate(items):
+            existing_artifacts = item['artifacts']
+            item_id = item['id']
+            for artifact_data in existing_artifacts:
+                completelist.add((item['id'], spec['id'],
+                                  artifact_data['generator_name'],
+                                  artifact_data['generator_id']))
 
         for idx, item in enumerate(items):
             try:
 
+                # print(json.dumps(item, indent=4))
+
                 existing_artifacts = item['artifacts']
                 item_id = item['id']
-                artifacts_data = generator.generate(item, spec['config'], existing_artifacts)
+                artifacts_data = generator.generate(item,
+                                                    spec['config'],
+                                                    existing_artifacts)
+
                 if isinstance(artifacts_data, dict):
                     artifacts_data = [artifacts_data]
 
+                if len(artifacts_data) == 0:
+                    print(f"[{idx}] Skipping. Nothing to do")
+                    continue
+
                 for artifact_data in artifacts_data:
-                    print(f"[{idx}] Adding", (item['id'], spec['id'], artifact_data['generator_name'],
-                                     artifact_data['generator_id']))
+                    rec = (item['id'], spec['id'], artifact_data['generator_name'],
+                           artifact_data['generator_id'])
+                    if rec in completelist:
+                        print(f"[{idx}] Skipping. Duplicate", rec)
+                        continue
+
+                    completelist.add(rec)
+                    print(f"[{idx}] Adding", rec)
 
                     # Generate embedding for content
                     try:
@@ -130,20 +157,25 @@ class ArtifactManager:
                         'artifact_metrics':  artifact_data.get('artifact_metrics')
                     }
                     artifacts_to_create.append(artifact)
+                    newartifacts = True
 
                 if idx > 0 and idx % 10 == 0:
                     print(f"[items: {idx}] New artifacts to create {len(artifacts_to_create)}")
-                    if delay > 0:
-                        time.sleep(delay)
+                    if newartifacts:
+                        inc_created = self.db.artifact_bulk_create(artifacts_to_create)
+                        created += inc_created
+                        artifacts_to_create = []
+                        if delay > 0:
+                            time.sleep(delay)
+
+                    newartifacts = False
 
 
             except Exception as e:
                 traceback.print_exc()
                 errors.append(f"Error processing item {item_id}: {str(e)}")
-                continue
+                raise
 
-        print("Final artifacts to create", len(artifacts_to_create))
-        created = self.db.artifact_bulk_create(artifacts_to_create)
 
         if errors:
             print("Generation errors occurred:", errors)

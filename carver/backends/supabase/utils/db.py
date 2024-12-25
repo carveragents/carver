@@ -444,16 +444,27 @@ class SupabaseClient:
                 return []
 
             item_ids = [i['id'] for i in items]
-            query = self.client.table('carver_artifact') \
-                               .select('*') \
-                               .in_('item_id', item_ids) \
-                               .eq('active', True)
-            if generator_name:
-                query = query.eq('generator_name', generator_name)
+            basequery = self.client.table('carver_artifact') \
+                                   .select('*') \
+                                   .in_('item_id', item_ids) \
+                                   .eq('active', True)
 
-            artifacts = query.execute()
+            if generator_name:
+                basequery = query.eq('generator_name', generator_name)
+
+            # Handle the case where there are more than 1000 artifacts
+            # for a given source
+            artifacts = []
+            for offset in range(0, 10000, 1000):
+                query = basequery.range(offset, offset+ 1000)
+                inc_artifacts = query.execute()
+                inc_artifacts = inc_artifacts.data
+                artifacts.extend(inc_artifacts)
+                if len(inc_artifacts) < 1000:
+                    break
+
             for item in items:
-                item_artifacts = [a for a in artifacts.data if a['item_id'] == item['id']]
+                item_artifacts = [a for a in artifacts if a['item_id'] == item['id']]
                 item['artifacts'] = item_artifacts
 
             return items
@@ -475,6 +486,7 @@ class SupabaseClient:
                                .select('item_id, carver_item!inner(source_id)')\
                                .eq('active', True) \
                                .eq('carver_item.source_id', source_id)
+
             if generator_name:
                 query = query.eq('generator_name', generator_name)
 

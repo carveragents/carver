@@ -57,6 +57,10 @@ class TranscriptionGenerator(BaseArtifactGenerator):
 
         return transcripts
 
+    def get_ids(self, config: Dict[str, Any]):
+        languages = config.get('languages', ['en', 'en-GB'])
+        return languages
+
     def generate(self, item: Dict[str, Any], config: Dict[str, Any], existing: List[Dict[str, Any]]) -> Dict[str, Any]:
 
         print(f"[{self.name}] Generating for", item['content_identifier'])
@@ -77,6 +81,8 @@ class TranscriptionGenerator(BaseArtifactGenerator):
         if len(missing_languages) == 0:
             print(f"[{self.name}] Nothing to do")
             return []
+
+        print("Getting transcripts from youtube")
 
         artifacts = self.get_transcripts(videoid, languages=missing_languages)
         for artifact in artifacts:

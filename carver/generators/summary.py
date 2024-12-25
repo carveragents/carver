@@ -73,8 +73,17 @@ class SummaryGenerator(BaseArtifactGenerator):
 
         return True
 
+
+    def get_ids(self, config: Dict[str, Any]):
+        ids = []
+        for prompt_config in config['prompts']:
+            generator_id = prompt_config['generator_id']
+            ids.append(generator_id)
+
+        return ids
+
     def generate(self, item: Dict[str, Any], config: Dict[str, Any],
-                existing: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+                 existing: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Generate summaries based on multiple prompts and configurations.
 
@@ -113,7 +122,7 @@ of different outputs that you must generate based on the instructions
             generator_id = prompt_config['generator_id']
 
             # Check if this type of summary already exists
-            if self._artifact_exists(existing, generator_id):
+            if self._artifact_exists(item, existing, generator_id):
                 logger.info(f"Summary of type '{generator_id}' already exists")
                 continue
 
@@ -137,6 +146,8 @@ of different outputs that you must generate based on the instructions
         limit = config.get('prompt_limit', 8192)
         transcript = transcript[:limit-len(system_prompt)]
 
+        should_flatten = config.get('flatten', True)
+
         try:
 
             summarydict = self._generate_summary(
@@ -146,7 +157,13 @@ of different outputs that you must generate based on the instructions
 
             for generator_id, summary in summarydict.items():
 
-                summary = flatten(summary)
+                if should_flatten:
+                    summary = flatten(summary)
+                elif isinstance(summary, (dict, list)):
+                    summary = json.dumps(summary, indent=4)
+                elif not isinstance(summary, str):
+                    summary = str(summary)
+
 
                 metadata = {
                     'source_length': len(transcript),
@@ -176,14 +193,21 @@ of different outputs that you must generate based on the instructions
 
         return new_artifacts
 
-    def _artifact_exists(self, existing: List[Dict[str, Any]],
+    def _artifact_exists(self, item: Dict[str, Any],
+                         existing: List[Dict[str, Any]],
                          generator_id: str) -> bool:
         """Check if an artifact of given type and language already exists"""
+
+        print("item", item['id'],
+              "generator_id", generator_id,
+              "existing", [(artifact.get('generator_name'), artifact.get('generator_id')) for artifact in existing])
+
         found = any(
             artifact.get('generator_name') == self.name and
             artifact.get('generator_id') == generator_id
             for artifact in existing
         )
+
         return found
 
     def _generate_summary(self, system_prompt: str, user_prompt: str):
