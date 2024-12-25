@@ -86,7 +86,6 @@ class SupabaseClient:
         result = query.execute()
         return result.data
 
-
     def entity_create(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Create a new entity"""
         result = self.client.table('carver_entity').insert(data).execute()
@@ -99,6 +98,20 @@ class SupabaseClient:
             .eq('id', entity_id) \
             .execute()
         return result.data[0] if result.data else None
+
+    def entity_update_metadata(self, entity_id: int, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """Update entity's metadata"""
+        current = self.entity_get(entity_id)
+        if not current:
+            return None
+
+        existing_metadata = current.get('metadata', {}) or {}
+        updated_metadata = {**existing_metadata, **metadata}
+
+        return self.entity_update(entity_id, {
+            'metadata': updated_metadata,
+            'updated_at': datetime.utcnow().isoformat()
+        })
 
     # Source methods
     def source_get(self, source_id: int) -> Dict[str, Any]:
@@ -176,6 +189,49 @@ class SupabaseClient:
             'updated_at': datetime.utcnow().isoformat()
         })
 
+    def update_source_analytics(self, source_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Update analytics metadata for a source.
+
+        Args:
+            source_id: ID of the source to update
+
+        Returns:
+            Updated source if successful, None otherwise
+        """
+        try:
+            # Get source analytics
+            result = self.client.rpc('get_source_analytics', {
+                'source_id_param': source_id
+            }).execute()
+
+            if not result.data:
+                return None
+
+            metrics = result.data[0]
+
+            # Prepare analytics metadata
+            analytics_metadata = {
+                "metrics": {
+                    'counts': {
+                        'items': metrics['active_items_count'],
+                        'artifacts': metrics['active_artifacts_count'],
+                        'specifications': metrics['active_specs_count']
+                    },
+                    'distribution': {
+                        'artifact_type': metrics['artifact_type_distribution'],
+                        'artifact_status': metrics['artifact_status_distribution']
+                    },
+                    'last_update': datetime.utcnow().isoformat()
+                }
+            }
+
+            # Update source metadata
+            return self.source_update_metadata(source_id, analytics_metadata)
+
+        except Exception as e:
+            logger.error(f"Error updating analytics for source {source_id}: {str(e)}")
+            raise
     ##########################################################
     # Item Methods
     ##########################################################

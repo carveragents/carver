@@ -641,3 +641,85 @@ def update_embeddings(ctx, entity_id: int, batch_size: int, status: Optional[str
     except Exception as e:
         traceback.print_exc()
         click.echo(f"Error updating embeddings: {str(e)}", err=True)
+
+@entity.command()
+@click.argument('entity_id', type=int)
+@click.pass_context
+def update_analytics(ctx, entity_id: int):
+    """Update analytics metadata for all sources of an entity."""
+    db = ctx.obj['supabase']
+
+    try:
+        # Verify entity exists
+        entity = db.entity_get(entity_id)
+        if not entity:
+            click.echo(f"Entity {entity_id} not found", err=True)
+            return
+
+        click.echo(f"\nUpdating analytics for entity: {entity['name']} (ID: {entity_id})")
+
+        # Get all sources for this entity
+        sources = db.source_search(
+            entity_id=entity_id,
+            active=True,
+            fields=['id', 'name']
+        )
+
+        if not sources:
+            click.echo("No sources found for this entity")
+            return
+
+        click.echo(f"Found {len(sources)} sources to process")
+
+        entity_metrics = {
+            'last_update': datetime.utcnow().isoformat(),
+            'sources_count': len(sources),
+            'sources': {},
+            'totals': {
+                'items': 0,
+                'artifacts': 0,
+                'specifications': 0
+            }
+        }
+
+        # Process each source
+        with click.progressbar(sources, label='Processing sources') as source_list:
+            for source in source_list:
+                # Update analytics for this source
+                updated_source = db.update_source_analytics(source['id'])
+
+                if updated_source and updated_source.get('analysis_metadata'):
+                    metrics = updated_source['analysis_metadata']['metrics']
+
+                    # Accumulate totals for entity-level metrics
+                    entity_metrics['totals']['items'] += metrics['counts']['items']
+                    entity_metrics['totals']['artifacts'] += metrics['counts']['artifacts']
+                    entity_metrics['totals']['specifications'] += metrics['counts']['specifications']
+
+                    # Store summarized metrics for this source
+                    entity_metrics['sources'][source['id']] = {
+                        'name': source['name'],
+                        'counts': metrics['counts']
+                    }
+
+        # Update entity metadata
+        entity_analytics = {
+            'metrics': entity_metrics,
+        }
+
+        entity = db.entity_update_metadata(entity_id, entity_analytics)
+
+        if entity:
+            # Print summary
+            click.echo("\nAnalytics update completed:")
+            click.echo(f"- Total Sources: {entity_metrics['sources_count']}")
+            click.echo(f"- Total Items: {entity_metrics['totals']['items']}")
+            click.echo(f"- Total Artifacts: {entity_metrics['totals']['artifacts']}")
+            click.echo(f"- Total Specifications: {entity_metrics['totals']['specifications']}")
+        else:
+            click.echo("Error updating entity analytics", err=True)
+
+    except Exception as e:
+        traceback.print_exc()
+        click.echo(f"Error: {str(e)}", err=True)
+

@@ -302,3 +302,43 @@ def sync_items(ctx, source_id: int, fields: Optional[str], max_results: Optional
     except Exception as e:
         traceback.print_exc()
         click.echo(f"Error: {str(e)}", err=True)
+
+@source.command()
+@click.argument('source_id', type=int)
+@click.pass_context
+def update_analytics(ctx, source_id: int):
+    """Update analytics metadata for a source."""
+    db = ctx.obj['supabase']
+
+    try:
+        # Verify source exists
+        source = db.source_get(source_id)
+        if not source:
+            click.echo(f"Source {source_id} not found", err=True)
+            return
+
+        click.echo(f"\nComputing analytics for source: {source['name']} (ID: {source_id})")
+
+        # Update analytics using the new method
+        updated_source = db.update_source_analytics(source_id)
+
+        if updated_source and updated_source.get('analysis_metadata'):
+            metrics = updated_source['analysis_metadata']['metrics']
+            click.echo("\nAnalytics updated successfully:")
+            click.echo(f"- Active Items: {metrics['counts']['items']}")
+            click.echo(f"- Active Artifacts: {metrics['counts']['artifacts']}")
+            click.echo(f"- Active Specifications: {metrics['counts']['specifications']}")
+
+            click.echo("\nArtifact Type Distribution:")
+            for artifact_type, count in metrics['distribution']['artifact_type'].items():
+                click.echo(f"- {artifact_type}: {count}")
+
+            click.echo("\nArtifact Status Distribution:")
+            for status, count in metrics['distribution']['artifact_status'].items():
+                click.echo(f"- {status}: {count}")
+        else:
+            click.echo("Error updating source analytics", err=True)
+
+    except Exception as e:
+        traceback.print_exc()
+        click.echo(f"Error: {str(e)}", err=True)

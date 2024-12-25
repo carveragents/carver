@@ -1,4 +1,4 @@
-# Carver 
+# Carver
 
 SDK to help build ecosystem intelligence by acquiring, analyzing, and
 applying content from variety of sources including YouTube, Reddit etc
