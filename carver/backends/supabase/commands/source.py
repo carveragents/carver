@@ -320,7 +320,7 @@ def update_analytics(ctx, source_id: int):
         click.echo(f"\nComputing analytics for source: {source['name']} (ID: {source_id})")
 
         # Update analytics using the new method
-        updated_source = db.update_source_analytics(source_id)
+        updated_source = db.source_update_analytics(source_id)
 
         if updated_source and updated_source.get('analysis_metadata'):
             metrics = updated_source['analysis_metadata']['metrics']

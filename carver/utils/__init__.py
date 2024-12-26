@@ -11,10 +11,46 @@ __all__ = [
     'flatten'
 ]
 
-def get_config():
-    config = Config(RepositoryIni(str(Path.home() / '.carver' / 'client.ini')))
-    return config
+# Configuration file locations to search
+CONFIG_LOCATIONS = []
+ENV_LOCATIONS = []
+for parent in [
+        Path('/etc/carver-db/'),          # System-wide
+        Path('/etc/carver/'),          # System-wide
+        Path('/etc/secrets/'),          # System-wide
+        Path.home() / '.carver-db',
+        Path.home() / '.carver',
+        Path.home() / '.secrets'
+]:
+    CONFIG_LOCATIONS.append( parent / 'carver.ini')
+    CONFIG_LOCATIONS.append( parent / '.carver.ini')
+    CONFIG_LOCATIONS.append( parent / 'carver-db.ini')
+    CONFIG_LOCATIONS.append( parent / '.carver-db.ini')
+    CONFIG_LOCATIONS.append( parent / 'server.ini')
+    CONFIG_LOCATIONS.append( parent / 'client.ini')
+    ENV_LOCATIONS.append( parent / '.env')
 
+def get_config():
+    config = None
+
+    # First try INI files
+    for config_path in CONFIG_LOCATIONS:
+        if config_path.is_file():
+            config = Config(RepositoryIni(str(config_path)))
+            break
+
+    # Then try ENV files
+    if not config:
+        for env_path in ENV_LOCATIONS:
+            if env_path.is_file():
+                config = Config(RepositoryEnv(str(env_path)))
+                break
+
+    # If no config file is found, use environment variables
+    if not config:
+        config = Config(RepositoryEnv())
+
+    return config
 
 def flatten(data):
 

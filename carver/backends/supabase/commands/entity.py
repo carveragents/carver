@@ -686,7 +686,7 @@ def update_analytics(ctx, entity_id: int):
         with click.progressbar(sources, label='Processing sources') as source_list:
             for source in source_list:
                 # Update analytics for this source
-                updated_source = db.update_source_analytics(source['id'])
+                updated_source = db.source_update_analytics(source['id'])
 
                 if updated_source and updated_source.get('analysis_metadata'):
                     metrics = updated_source['analysis_metadata']['metrics']

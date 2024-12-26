@@ -189,7 +189,7 @@ class SupabaseClient:
             'updated_at': datetime.utcnow().isoformat()
         })
 
-    def update_source_analytics(self, source_id: int) -> Optional[Dict[str, Any]]:
+    def source_update_analytics(self, source_id: int) -> Optional[Dict[str, Any]]:
         """
         Update analytics metadata for a source.
 
