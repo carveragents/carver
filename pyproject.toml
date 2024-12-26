@@ -55,9 +55,6 @@ Issues = "https://github.com/pingali/carver/issues"
 [project.scripts]
 carver-run = "carver.cli:cli"
 
-[tool.setuptools]
-packages = ["carver"]
-
 [tool.setuptools.package-data]
 carver = ["py.typed"]
 
