@@ -29,11 +29,11 @@ class BaseArtifactGenerator(ABC):
                         config: Dict[str, Any]) -> bool:
 
         if (("*" not in self.supported_platforms) and
-            (source['platform'] not in self.supported_platforms)):
+            (source['platform'].upper() not in [x.upper() for x in self.supported_platforms])):
             raise ValueError(f"Unsupported platform: {source['platform']}")
 
         if (("*" not in self.supported_source_types) and
-            (source['source_type'] not in self.supported_source_types)):
+            (source['source_type'].upper() not in [x.upper() for x in self.supported_source_types])):
             raise ValueError(f"Unsupported source type: {source['source_type']}")
 
         return all(k in config for k in self.required_config)
