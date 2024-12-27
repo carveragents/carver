@@ -17,17 +17,17 @@ class ThreadGenerator(BaseArtifactGenerator):
     supported_source_types = ['*']
     required_config = ['languages', "prompt"]
 
-    def generate(self, item: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
+    def generate(self, post: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
         # Implement thread generation
-        thread = f"Thread from {item.get('title', 'discussion')}"
+        thread = f"Thread from {post.get('title', 'discussion')}"
 
         return {
-            'title': f"Thread: {item.get('title', 'Untitled')}",
+            'title': f"Thread: {post.get('title', 'Untitled')}",
             'content': thread,
             'format': 'markdown',
             'language': config.get('language', 'en'),
             'analysis_metadata': {
-                'total_comments': len(item.get('comments', [])),
+                'total_comments': len(post.get('comments', [])),
                 'thread_depth': config['thread_depth']
             }
         }

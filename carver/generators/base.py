@@ -21,8 +21,8 @@ class BaseArtifactGenerator(ABC):
         }
 
     @abstractmethod
-    def generate(self, item: Dict[str, Any], config: Dict[str, Any], existing: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Generate artifact content from item data"""
+    def generate(self, post: Dict[str, Any], config: Dict[str, Any], existing: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Generate artifact content from post data"""
         pass
 
     def validate_config(self, source: Dict[str, Any],

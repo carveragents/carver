@@ -66,11 +66,11 @@ class ArtifactManager:
     # Artifact Generation Methods
     ##########################################################
     def artifact_bulk_create_from_spec(self, spec: Dict[str, Any],
-                                       items: List[Dict[str, Any]],
+                                       posts: List[Dict[str, Any]],
                                        generator_name: Optional[str],
                                        delay: int = 5, # seconds
                                        ) -> List[Dict[str, Any]]:
-        """Generate artifacts for multiple items using a specification"""
+        """Generate artifacts for multiple posts using a specification"""
 
         if not spec:
             raise ValueError(f"Specification not found")
@@ -94,22 +94,22 @@ class ArtifactManager:
         completelist = set()
         created = []
 
-        for idx, item in enumerate(items):
-            existing_artifacts = item['artifacts']
-            item_id = item['id']
+        for idx, post in enumerate(posts):
+            existing_artifacts = post['artifacts']
+            post_id = post['id']
             for artifact_data in existing_artifacts:
-                completelist.add((item['id'], spec['id'],
+                completelist.add((post['id'], spec['id'],
                                   artifact_data['generator_name'],
                                   artifact_data['generator_id']))
 
-        for idx, item in enumerate(items):
+        for idx, post in enumerate(posts):
             try:
 
-                # print(json.dumps(item, indent=4))
+                # print(json.dumps(post, indent=4))
 
-                existing_artifacts = item['artifacts']
-                item_id = item['id']
-                artifacts_data = generator.generate(item,
+                existing_artifacts = post['artifacts']
+                post_id = post['id']
+                artifacts_data = generator.generate(post,
                                                     spec['config'],
                                                     existing_artifacts)
 
@@ -121,7 +121,7 @@ class ArtifactManager:
                     continue
 
                 for artifact_data in artifacts_data:
-                    rec = (item['id'], spec['id'], artifact_data['generator_name'],
+                    rec = (post['id'], spec['id'], artifact_data['generator_name'],
                            artifact_data['generator_id'])
                     if rec in completelist:
                         print(f"[{idx}] Skipping. Duplicate", rec)
@@ -140,7 +140,7 @@ class ArtifactManager:
                     artifact = {
                         'active': True,
                         'spec_id': spec['id'],
-                        'item_id': item['id'],
+                        'post_id': post['id'],
                         'generator_name': artifact_data['generator_name'],
                         'generator_id':   artifact_data['generator_id'],
                         'name':           artifact_data['title'],
@@ -160,7 +160,7 @@ class ArtifactManager:
                     newartifacts = True
 
                 if idx > 0 and idx % 10 == 0:
-                    print(f"[items: {idx}] New artifacts to create {len(artifacts_to_create)}")
+                    print(f"[posts: {idx}] New artifacts to create {len(artifacts_to_create)}")
                     if newartifacts:
                         inc_created = self.db.artifact_bulk_create(artifacts_to_create)
                         created += inc_created
@@ -173,7 +173,7 @@ class ArtifactManager:
 
             except Exception as e:
                 traceback.print_exc()
-                errors.append(f"Error processing item {item_id}: {str(e)}")
+                errors.append(f"Error processing post {post_id}: {str(e)}")
                 raise
 
 
@@ -189,17 +189,17 @@ class ArtifactManager:
         if not artifact:
             raise ValueError(f"Artifact {artifact_id} not found")
 
-        # Get specification and item
+        # Get specification and post
         spec = self.db.specification_get(artifact['spec_id'])
-        item = self.db.item_get(artifact['item_id'])
+        post = self.db.post_get(artifact['post_id'])
 
-        if not spec or not item:
-            raise ValueError("Associated specification or item not found")
+        if not spec or not post:
+            raise ValueError("Associated specification or post not found")
 
         # Get generator and regenerate
         config = spec['config']
         generator = ArtifactGeneratorFactory.get_generator(config['generator'])
-        artifact_data = generator.generate(item, spec['config'])
+        artifact_data = generator.generate(post, spec['config'])
 
         # Update artifact
         update_data = {
@@ -326,21 +326,21 @@ class ArtifactManager:
         """Update metrics for an artifact"""
         return self.db.artifact_metrics_update(artifact_id, metrics, replace)
 
-    def items_without_artifacts(self, source_id: int,
+    def posts_without_artifacts(self, source_id: int,
                                 artifact_type: str,
                                 modified_after: Optional[datetime] = None,
                                 max_results: Optional[int] = None) -> List[Dict[str, Any]]:
         """
-        Get items that don't have active artifacts of specified type
+        Get posts that don't have active artifacts of specified type
 
         Args:
             source_id: Source ID to search within
             artifact_type: Type of artifact to check for
-            modified_after: Optional filter for items modified after this time
-            max_results: Maximum number of items to return
+            modified_after: Optional filter for posts modified after this time
+            max_results: Maximum number of posts to return
         """
 
-        return self.db.item_search_without_artifacts(
+        return self.db.post_search_without_artifacts(
             source_id=source_id,
             artifact_type=artifact_type,
             modified_after=modified_after,

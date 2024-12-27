@@ -374,15 +374,15 @@ def content(ctx):
 
 @content.command()
 @click.option('--spec-id', required=True, type=int, help='Specification ID')
-@click.option('--items', required=True, help='Comma-separated list of item IDs')
+@click.option('--posts', required=True, help='Comma-separated list of post IDs')
 @click.option('--generator-name', required=True, help='Generator name to use')
 @click.pass_context
-def generate(ctx, spec_id: int, items: str, generator_name: str):
-    """Generate artifacts for specified items using a specification."""
+def generate(ctx, spec_id: int, posts: str, generator_name: str):
+    """Generate artifacts for specified posts using a specification."""
     manager = ctx.obj['manager']
     try:
-        item_ids = [int(i.strip()) for i in items.split(',')]
-        results = manager.artifact_bulk_create_from_spec(spec_id, item_ids, generator_name)
+        post_ids = [int(i.strip()) for i in posts.split(',')]
+        results = manager.artifact_bulk_create_from_spec(spec_id, post_ids, generator_name)
         click.echo(f"Successfully generated {len(results)} artifacts")
     except Exception as e:
         traceback.print_exc()
@@ -391,13 +391,13 @@ def generate(ctx, spec_id: int, items: str, generator_name: str):
 @content.command()
 @click.option('--spec-id', required=False, type=int, help='Specification ID')
 @click.option('--source-id', required=False, type=int, help='Source ID')
-@click.option('--last', type=str, help='Filter items by time (e.g. "1d", "2h", "30m")')
+@click.option('--last', type=str, help='Filter posts by time (e.g. "1d", "2h", "30m")')
 @click.option('--generator-name', required=False, help='Generator name to use')
 @click.option('--offset', default=0, type=int, help='Offset for search results')
-@click.option('--limit', default=50, type=int, help='Maximum number of items to fetch')
+@click.option('--limit', default=50, type=int, help='Maximum number of posts to fetch')
 @click.pass_context
 def bulk_generate(ctx, spec_id: int, source_id: int, last: Optional[str], generator_name: str, offset: int, limit: int):
-    """Bulk generate artifacts for items from a source that don't have active artifacts."""
+    """Bulk generate artifacts for posts from a source that don't have active artifacts."""
     manager = ctx.obj['manager']
     db = ctx.obj['supabase']
 
@@ -416,20 +416,20 @@ def bulk_generate(ctx, spec_id: int, source_id: int, last: Optional[str], genera
         if not source_id:
             source_id = specs[0]['source_id']
 
-        # Get items needing artifacts
+        # Get posts needing artifacts
         time_filter = parse_date_filter(last) if last else None
-        items = db.item_search_with_artifacts(
+        posts = db.post_search_with_artifacts(
             source_id=source_id,
             modified_after=time_filter,
             limit=limit,
             offset=offset,
         )
 
-        if not items:
-            click.echo("No items found requiring artifact generation")
+        if not posts:
+            click.echo("No posts found requiring artifact generation")
             return
 
-        click.echo(f"Found {len(items)} items to process for artifact generation")
+        click.echo(f"Found {len(posts)} posts to process for artifact generation")
 
         # Process each specification
         for spec in specs:
@@ -438,7 +438,7 @@ def bulk_generate(ctx, spec_id: int, source_id: int, last: Optional[str], genera
                 continue
 
             try:
-                results = manager.artifact_bulk_create_from_spec(spec, items, generator_name)
+                results = manager.artifact_bulk_create_from_spec(spec, posts, generator_name)
                 click.echo(f"Successfully generated {len(results)} artifacts using specification {spec['id']}")
             except Exception as e:
                 traceback.print_exc()
@@ -451,13 +451,13 @@ def bulk_generate(ctx, spec_id: int, source_id: int, last: Optional[str], genera
 
 @content.command()
 @click.option('--spec-id', type=int, help='Filter by specification ID')
-@click.option('--item-id', type=int, help='Filter by item ID')
+@click.option('--post-id', type=int, help='Filter by post ID')
 @click.option('--artifact-type', help='Filter by artifact type')
 @click.option('--status', help='Filter by status')
 @click.option('--active/--inactive', default=True, help='Filter by active status')
 @click.option('--last', type=str, help='Filter by time window (e.g. "1d", "2h", "30m")')
 @click.option('--offset', default=0, type=int, help='Offset for search results')
-@click.option('--limit', default=50, type=int, help='Maximum number of items to fetch')
+@click.option('--limit', default=50, type=int, help='Maximum number of posts to fetch')
 @click.option('--format', 'output_format',
               type=click.Choice(['table', 'grid', 'pipe', 'orgtbl', 'rst', 'mediawiki', 'html']),
               default='table',
@@ -467,7 +467,7 @@ def bulk_generate(ctx, spec_id: int, source_id: int, last: Optional[str], genera
               help='Dump results to file in specified format')
 @click.option('--output', '-o', type=click.Path(), help='Output file path for dump')
 @click.pass_context
-def search(ctx, spec_id: Optional[int], item_id: Optional[int],
+def search(ctx, spec_id: Optional[int], post_id: Optional[int],
            artifact_type: Optional[str], status: Optional[str],
            last: Optional[str], offset: int, limit: int,
            active: Optional[bool], output_format: str,
@@ -480,7 +480,7 @@ def search(ctx, spec_id: Optional[int], item_id: Optional[int],
 
         artifacts = db.artifact_search(
             spec_id=spec_id,
-            item_id=item_id,
+            post_id=post_id,
             artifact_type=artifact_type,
             status=status,
             active=active,
@@ -499,10 +499,10 @@ def search(ctx, spec_id: Optional[int], item_id: Optional[int],
             row = {
                 'id': art['id'],
                 'specification': art['carver_artifact_specification']['name'],
-                'item_id': art['item_id'],
-                'item_name': art['carver_item']['name'],
-                'item_description': art['carver_item']['description'],
-                'item_url': art['carver_item']['url'],
+                'post_id': art['post_id'],
+                'post_name': art['carver_post']['name'],
+                'post_description': art['carver_post']['description'],
+                'post_url': art['carver_post']['url'],
                 'artifact_type': art['artifact_type'],
                 'generator': f"{art['generator_name']}:{art['generator_id']}",
                 'title': art['title'],
@@ -521,7 +521,7 @@ def search(ctx, spec_id: Optional[int], item_id: Optional[int],
             table_rows = [[
                 r['id'],
                 r['specification'],
-                r['item_id'],
+                r['post_id'],
                 r['artifact_type'],
                 r['generator'],
                 r['title'][:20] + ('...' if len(r['title']) > 20 else ''),
@@ -532,7 +532,7 @@ def search(ctx, spec_id: Optional[int], item_id: Optional[int],
                 r['created_at']
             ] for r in rows]
 
-            headers = ['ID', 'Spec', "ItemID", 'Type', "Generator:ID",
+            headers = ['ID', 'Spec', "PostID", 'Type', "Generator:ID",
                        'Title', 'Status', 'V', 'E','A', 'Created']
 
             click.echo(tabulate(table_rows, headers=headers, tablefmt=output_format))

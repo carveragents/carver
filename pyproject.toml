@@ -43,7 +43,8 @@ dependencies = [
    "langdetect>=1.0.9",  # For language detection
    "bs4",
    "substack-api",
-   "lxml_html_clean"
+   "lxml_html_clean",
+   "newspaper4k"
 ]
 
 [project.urls]

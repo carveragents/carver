@@ -214,7 +214,7 @@ class SupabaseClient:
             analytics_metadata = {
                 "metrics": {
                     'counts': {
-                        'items': metrics['active_items_count'],
+                        'posts': metrics['active_posts_count'],
                         'artifacts': metrics['active_artifacts_count'],
                         'specifications': metrics['active_specs_count']
                     },
@@ -235,19 +235,19 @@ class SupabaseClient:
     ##########################################################
     # Item Methods
     ##########################################################
-    def item_get(self, item_id: int) -> Optional[Dict]:
+    def post_get(self, post_id: int) -> Optional[Dict]:
         """Get a single item by ID with its source information"""
         try:
-            result = self.client.table('carver_item') \
+            result = self.client.table('carver_post') \
                 .select('*, carver_source(*)') \
-                .eq('id', item_id) \
+                .eq('id', post_id) \
                 .execute()
             return result.data[0] if result.data else None
         except Exception as e:
-            logger.error(f"Error getting item {item_id}: {str(e)}")
+            logger.error(f"Error getting item {post_id}: {str(e)}")
             raise
 
-    def item_search(self,
+    def post_search(self,
                     source_id: Optional[int] = None,
                     content_type: Optional[str] = None,
                     content_identifier: Optional[Any] = None,
@@ -259,10 +259,10 @@ class SupabaseClient:
                     title_search: Optional[str] = None,
                     tags_search: Optional[str] = None,
                     fields: Optional[List[str]] = None,
-                    limit: int = 100,
+                    limit: int = 20,
                     offset: int = 0) -> List[Dict[str, Any]]:
         """
-        Search items with various filters
+        Search posts with various filters
 
         Args:
             fields: Optional list of specific fields to return
@@ -276,8 +276,8 @@ class SupabaseClient:
             acquired_since: Filter by acquisition date
             title_search: Search in titles (partial match)
             tags_search: Search in tags (partial match)
-            limit: Maximum number of items to return
-            offset: Number of items to skip
+            limit: Maximum number of posts to return
+            offset: Number of posts to skip
         """
         try:
             # Build the select statement
@@ -292,7 +292,7 @@ class SupabaseClient:
             else:
                 select_statement = '*, carver_source(*)'
 
-            query = self.client.table('carver_item').select(select_statement)
+            query = self.client.table('carver_post').select(select_statement)
 
             if source_id:
                 query = query.eq('source_id', source_id)
@@ -319,84 +319,84 @@ class SupabaseClient:
                 query = query.ilike('tags', f'%{tags_search}%')
 
             # Add sorting and pagination
-            query = query.order('published_at', desc=True)
+            query = query.order('updated_at', desc=True)
             query = query.range(offset, offset + limit - 1)
 
             result = query.execute()
             return result.data
 
         except Exception as e:
-            logger.error(f"Error in item_search: {str(e)}")
+            logger.error(f"Error in post_search: {str(e)}")
             raise
 
-    def item_get_by_identifiers(self, source_id: int, content_identifiers: List[str],
+    def post_get_by_identifiers(self, source_id: int, content_identifiers: List[str],
                               fields: Optional[List[str]] = None) -> List[Dict[str, Any]]:
         """
-        Get items by their source_id and content identifiers
+        Get posts by their source_id and content identifiers
 
         Args:
             source_id: The source ID
             content_identifiers: List of content identifiers to fetch
             fields: Optional list of specific fields to return
         """
-        return self.item_search(
+        return self.post_search(
             source_id=source_id,
             content_identifier=content_identifiers,
             fields=fields,
             limit=len(content_identifiers)
         )
 
-    def item_bulk_create(self, items: List[Dict[str, Any]], chunk_size: int = 100) -> List[Dict[str, Any]]:
+    def post_bulk_create(self, posts: List[Dict[str, Any]], chunk_size: int = 100) -> List[Dict[str, Any]]:
         """
-        Bulk create items with automatic chunking to avoid request size limits.
-        Returns list of created items.
+        Bulk create posts with automatic chunking to avoid request size limits.
+        Returns list of created posts.
         """
-        created_items = []
+        created_posts = []
 
         # Process in chunks to avoid request size limits
-        for chunk in chunks(items, chunk_size):
+        for chunk in chunks(posts, chunk_size):
             try:
-                result = self.client.table('carver_item').insert(chunk).execute()
+                result = self.client.table('carver_post').insert(chunk).execute()
                 if result.data:
-                    created_items.extend(result.data)
+                    created_posts.extend(result.data)
             except Exception as e:
                 logger.error(f"Error in bulk create: {str(e)}")
                 # Continue with next chunk even if one fails
                 continue
 
-        return created_items
+        return created_posts
 
-    def item_bulk_update(self, items: List[Dict[str, Any]], chunk_size: int = 100) -> List[Dict[str, Any]]:
+    def post_bulk_update(self, posts: List[Dict[str, Any]], chunk_size: int = 100) -> List[Dict[str, Any]]:
         """
-        Bulk update items with automatic chunking.
+        Bulk update posts with automatic chunking.
         Each item dict must contain 'id' field.
-        Returns list of updated items.
+        Returns list of updated posts.
         """
-        updated_items = []
+        updated_posts = []
 
-        # Validate all items have IDs
-        if not all('id' in item for item in items):
-            raise ValueError("All items must have 'id' field for bulk update")
+        # Validate all posts have IDs
+        if not all('id' in item for item in posts):
+            raise ValueError("All posts must have 'id' field for bulk update")
 
         # Process in chunks
-        for chunk in chunks(items, chunk_size):
+        for chunk in chunks(posts, chunk_size):
             try:
-                result = self.client.table('carver_item') \
+                result = self.client.table('carver_post') \
                     .upsert(chunk) \
                     .execute()
                 if result.data:
-                    updated_items.extend(result.data)
+                    updated_posts.extend(result.data)
             except Exception as e:
                 logger.error(f"Error in bulk update: {str(e)}")
                 continue
 
-        return updated_items
+        return updated_posts
 
-    def item_bulk_activate(self, source_id: int, content_identifiers: List[str]) -> List[Dict[str, Any]]:
-        """Activate items by their content identifiers"""
+    def post_bulk_activate(self, source_id: int, content_identifiers: List[str]) -> List[Dict[str, Any]]:
+        """Activate posts by their content identifiers"""
         try:
-            # First get the items to update
-            items = self.item_search(
+            # First get the posts to update
+            posts = self.post_search(
                 source_id=source_id,
                 content_identifier=content_identifiers
             )
@@ -405,18 +405,18 @@ class SupabaseClient:
                 'id': item['id'],
                 'active': True,
                 'updated_at': datetime.utcnow().isoformat()
-            } for item in items]
+            } for item in posts]
 
-            return self.item_bulk_update(updates)
+            return self.post_bulk_update(updates)
         except Exception as e:
             logger.error(f"Error in bulk activate: {str(e)}")
             raise
 
-    def item_bulk_deactivate(self, source_id: int, content_identifiers: List[str]) -> List[Dict[str, Any]]:
-        """Deactivate items by their content identifiers"""
+    def post_bulk_deactivate(self, source_id: int, content_identifiers: List[str]) -> List[Dict[str, Any]]:
+        """Deactivate posts by their content identifiers"""
         try:
-            # First get the items to update
-            items = self.item_search(
+            # First get the posts to update
+            posts = self.post_search(
                 source_id=source_id,
                 content_identifier=content_identifiers
             )
@@ -425,25 +425,25 @@ class SupabaseClient:
                 'id': item['id'],
                 'active': False,
                 'updated_at': datetime.utcnow().isoformat()
-            } for item in items]
+            } for item in posts]
 
-            return self.item_bulk_update(updates)
+            return self.post_bulk_update(updates)
         except Exception as e:
             logger.error(f"Error in bulk deactivate: {str(e)}")
             raise
 
-    def item_bulk_update_metadata(self, items: List[Dict[str, Any]], chunk_size: int = 100) -> List[Dict[str, Any]]:
+    def post_bulk_update_metadata(self, posts: List[Dict[str, Any]], chunk_size: int = 100) -> List[Dict[str, Any]]:
         """
-        Bulk update items' analysis metadata.
+        Bulk update posts' analysis metadata.
         Each item should have 'id' and 'analysis_metadata' fields.
         Preserves existing metadata.
         """
         updates = []
-        for item in items:
-            if 'id' not in item or 'analysis_metadata' not in item:
+        for item in posts:
+            if 'id' not in item or 'analysis_metadata' not in post:
                 continue
 
-            current = self.item_get(item['id'])
+            current = self.post_get(item['id'])
             if not current:
                 continue
 
@@ -456,35 +456,35 @@ class SupabaseClient:
                 'updated_at': datetime.utcnow().isoformat()
             })
 
-        return self.item_bulk_update(updates, chunk_size)
+        return self.post_bulk_update(updates, chunk_size)
 
-    def item_bulk_set_processed(self, item_ids: List[int], processed: bool = True) -> List[Dict[str, Any]]:
-        """Bulk update processed status for multiple items"""
+    def post_bulk_set_processed(self, post_ids: List[int], processed: bool = True) -> List[Dict[str, Any]]:
+        """Bulk update processed status for multiple posts"""
         try:
             updates = [{
-                'id': item_id,
+                'id': post_id,
                 'is_processed': processed,
                 'updated_at': datetime.utcnow().isoformat()
-            } for item_id in item_ids]
+            } for post_id in post_ids]
 
-            return self.item_bulk_update(updates)
+            return self.post_bulk_update(updates)
         except Exception as e:
             logger.error(f"Error in bulk set processed: {str(e)}")
             raise
 
-    def item_search_with_artifacts(self,
+    def post_search_with_artifacts(self,
                                    source_id: int,
                                    generator_name: Optional[str] = None,
                                    modified_after: Optional[datetime] = None,
                                    offset: int = 0,
                                    limit: int = 10) -> Dict[int, Dict]:
         """
-        Find items with their artifacts for a specific generator
-        Returns a map of item_id -> {item: item_data, artifacts: [artifact_data]}
+        Find posts with their artifacts for a specific generator
+        Returns a map of post_id -> {post: post_data, artifacts: [artifact_data]}
         """
         try:
-            # Get active items from source
-            query = self.client.table('carver_item') \
+            # Get active posts from source
+            query = self.client.table('carver_post') \
                                .select('*') \
                                .eq('source_id', source_id) \
                                .eq('active', True)
@@ -494,15 +494,15 @@ class SupabaseClient:
 
             query  = query.range(offset, offset + limit - 1)
             result = query.execute()
-            items  = result.data
+            posts  = result.data
 
-            if len(items) == 0:
+            if len(posts) == 0:
                 return []
 
-            item_ids = [i['id'] for i in items]
+            post_ids = [i['id'] for i in posts]
             basequery = self.client.table('carver_artifact') \
                                    .select('*') \
-                                   .in_('item_id', item_ids) \
+                                   .in_('post_id', post_ids) \
                                    .eq('active', True)
 
             if generator_name:
@@ -519,44 +519,44 @@ class SupabaseClient:
                 if len(inc_artifacts) < 1000:
                     break
 
-            for item in items:
-                item_artifacts = [a for a in artifacts if a['item_id'] == item['id']]
-                item['artifacts'] = item_artifacts
+            for item in posts:
+                post_artifacts = [a for a in artifacts if a['post_id'] == item['id']]
+                item['artifacts'] = post_artifacts
 
-            return items
+            return posts
 
         except Exception as e:
-            logger.error(f"Error in item_search_with_artifacts: {str(e)}")
+            logger.error(f"Error in post_search_with_artifacts: {str(e)}")
             raise
 
-    def item_search_without_artifacts(self,
+    def post_search_without_artifacts(self,
                                       source_id: int,
                                       generator_name: Optional[str] = None,
                                       modified_after: Optional[datetime] = None,
                                       offset: int = 0,
                                       limit: int = 1000) -> List[Dict[str, Any]]:
 
-        """Find items without artifacts for a specific generator"""
+        """Find posts without artifacts for a specific generator"""
         try:
             query = self.client.table('carver_artifact') \
-                               .select('item_id, carver_item!inner(source_id)')\
+                               .select('post_id, carver_post!inner(source_id)')\
                                .eq('active', True) \
-                               .eq('carver_item.source_id', source_id)
+                               .eq('carver_post.source_id', source_id)
 
             if generator_name:
                 query = query.eq('generator_name', generator_name)
 
-            items_with_artifacts = query.execute()
+            posts_with_artifacts = query.execute()
 
-            item_ids_with_artifacts = [item['item_id'] for item in items_with_artifacts.data]
+            post_ids_with_artifacts = [item['post_id'] for item in posts_with_artifacts.data]
 
-            query = self.client.table('carver_item') \
+            query = self.client.table('carver_post') \
                                .select('*') \
                                .eq('source_id', source_id) \
                                .eq('active', True)
 
-            if item_ids_with_artifacts:
-                query = query.not_.in_('id', item_ids_with_artifacts)
+            if post_ids_with_artifacts:
+                query = query.not_.in_('id', post_ids_with_artifacts)
 
             if modified_after:
                 query = query.gte('updated_at', modified_after.isoformat())
@@ -566,7 +566,7 @@ class SupabaseClient:
             return result.data
 
         except Exception as e:
-            logger.error(f"Error in item_search_without_artifacts: {str(e)}")
+            logger.error(f"Error in post_search_without_artifacts: {str(e)}")
             raise
 
 
@@ -702,7 +702,7 @@ class SupabaseClient:
         """Get a single artifact by ID with related data"""
         try:
             result = self.client.table('carver_artifact') \
-                .select('*, carver_artifact_specification(*), carver_item(*)') \
+                .select('*, carver_artifact_specification(*), carver_post(*)') \
                 .eq('id', artifact_id) \
                 .execute()
             return result.data[0] if result.data else None
@@ -712,7 +712,7 @@ class SupabaseClient:
 
     def artifact_search(self,
                         spec_id: Optional[int] = None,
-                        item_id: Optional[int] = None,
+                        post_id: Optional[int] = None,
                         artifact_type: Optional[str] = None,
                         status: Optional[str] = None,
                         active: Optional[bool] = None,
@@ -731,7 +731,7 @@ class SupabaseClient:
 
         Args:
             spec_id: Filter by specification ID
-            item_id: Filter by item ID
+            post_id: Filter by item ID
             artifact_type: Filter by artifact type
             status: Filter by status
             active: Filter by active status
@@ -752,18 +752,18 @@ class SupabaseClient:
                 # If fields are specified but related tables aren't included, add minimal fields
                 if 'carver_artifact_specification' not in field_list:
                     field_list.append('carver_artifact_specification(id, name)')
-                if 'carver_item' not in field_list:
-                    field_list.append('carver_item(id, name, title, content_identifier)')
+                if 'carver_post' not in field_list:
+                    field_list.append('carver_post(id, name, title, content_identifier)')
                 select_statement = ', '.join(field_list)
             else:
-                select_statement = '*, carver_artifact_specification(*), carver_item(name, title, description, content_type, content_identifier, url)'
+                select_statement = '*, carver_artifact_specification(*), carver_post(name, title, description, content_type, content_identifier, url)'
 
             query = self.client.table('carver_artifact').select(select_statement)
 
             if spec_id:
                 query = query.eq('spec_id', spec_id)
-            if item_id:
-                query = query.eq('item_id', item_id)
+            if post_id:
+                query = query.eq('post_id', post_id)
             if artifact_type:
                 query = query.eq('artifact_type', artifact_type)
             if status:
@@ -804,7 +804,7 @@ class SupabaseClient:
         created = []
 
         # Ensure required fields
-        required = {'spec_id', 'item_id', 'title', 'content',
+        required = {'spec_id', 'post_id', 'title', 'content',
                     'generator_name', 'generator_id',
                     'artifact_type', 'format'}
         for artifact in artifacts:

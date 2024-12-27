@@ -13,7 +13,7 @@ from tabulate import tabulate
 
 from carver.feeds.youtube import YouTubePlaylistDiscovery
 
-from .item_manager import ItemManager
+from .post_manager import PostManager
 from .artifact_manager import ArtifactManager
 from ..utils import *
 
@@ -21,7 +21,7 @@ from ..utils import *
 @click.pass_context
 def project(ctx):
     """Manage projects in the system."""
-    ctx.obj['item_manager'] = ItemManager(ctx.obj['supabase'])
+    ctx.obj['post_manager'] = PostManager(ctx.obj['supabase'])
     ctx.obj['artifact_manager'] = ArtifactManager(ctx.obj['supabase'])
 
 @project.command()
@@ -231,12 +231,12 @@ def show(ctx, project_id: int):
 @project.command()
 @click.argument('project_id', type=int)
 @click.option('--fields', help='Comma-separated list of fields to sync for each source')
-@click.option('--max-results', type=int, help='Maximum number of items to fetch per source')
+@click.option('--max-results', type=int, help='Maximum number of posts to fetch per source')
 @click.pass_context
-def sync_items(ctx, project_id: int, fields: Optional[str], max_results: Optional[int]):
-    """Sync items from all active sources for an project."""
+def sync_posts(ctx, project_id: int, fields: Optional[str], max_results: Optional[int]):
+    """Sync posts from all active sources for an project."""
     db = ctx.obj['supabase']
-    item_manager = ctx.obj['item_manager']
+    post_manager = ctx.obj['post_manager']
 
     try:
         # Get all active sources for the project
@@ -257,7 +257,7 @@ def sync_items(ctx, project_id: int, fields: Optional[str], max_results: Optiona
         for source in sources:
             click.echo(f"\nProcessing source: {source['name']} (ID: {source['id']})")
             try:
-                added, updated = item_manager.sync_items(
+                added, updated = post_manager.sync_posts(
                     source['id'],
                     field_list,
                     max_results
@@ -266,11 +266,12 @@ def sync_items(ctx, project_id: int, fields: Optional[str], max_results: Optiona
                 total_updated += updated
                 click.echo(f"- Added: {added}, Updated: {updated}")
             except Exception as e:
+                traceback.print_exc()
                 click.echo(f"Error processing source {source['id']}: {str(e)}", err=True)
-                continue
+                ctx.exit(1)
 
         click.echo(f"\nSync completed for {len(sources)} sources")
-        click.echo(f"Total items: {total_added} added, {total_updated} updated")
+        click.echo(f"Total posts: {total_added} added, {total_updated} updated")
 
     except Exception as e:
         traceback.print_exc()
@@ -280,9 +281,9 @@ def sync_items(ctx, project_id: int, fields: Optional[str], max_results: Optiona
 @click.argument('project_id', type=int)
 @click.option('--max-retries', type=int, default=3,
               help='Maximum number of retries for dependency resolution')
-@click.option('--last', type=str, help='Filter items by time (e.g. "1d", "2h", "30m")')
+@click.option('--last', type=str, help='Filter posts by time (e.g. "1d", "2h", "30m")')
 @click.option('--offset', default=0, type=int, help='Offset for search results')
-@click.option('--limit', default=50, type=int, help='Maximum number of items to fetch')
+@click.option('--limit', default=50, type=int, help='Maximum number of posts to fetch')
 @click.pass_context
 def generate_bulk(ctx, project_id: int, max_retries: int, last: Optional[str],
                  offset: int, limit: int):
@@ -331,20 +332,20 @@ def generate_bulk(ctx, project_id: int, max_retries: int, last: Optional[str],
             label = f"[{source_id}] {source['name']}"
             click.echo(f"\n{label}: Started processing")
 
-            # Get items needing artifacts
+            # Get posts needing artifacts
             time_filter = parse_date_filter(last) if last else None
-            items = db.item_search_with_artifacts(
+            posts = db.post_search_with_artifacts(
                 source_id=source_id,
                 modified_after=time_filter,
                 offset=offset,
                 limit=limit
             )
 
-            if not items:
-                click.echo(f"No items found requiring artifact generation for source {source_id}")
+            if not posts:
+                click.echo(f"No posts found requiring artifact generation for source {source_id}")
                 continue
 
-            click.echo(f"{label}: Found {len(items)} items with artifacts")
+            click.echo(f"{label}: Found {len(posts)} posts with artifacts")
 
             # Process specifications for this source
             for spec_id in sorted_specs_ids:
@@ -361,7 +362,7 @@ def generate_bulk(ctx, project_id: int, max_retries: int, last: Optional[str],
                 while retry_count < max_retries and not success:
                     try:
                         results = artifact_manager.artifact_bulk_create_from_spec(spec,
-                                                                                  items,
+                                                                                  posts,
                                                                                   None)
                         total_generated += len(results)
                         click.echo(f"Generated {len(results)} artifacts")
@@ -545,9 +546,9 @@ def search_similar(ctx, project_id: int, query: str, threshold: float, limit: in
 @click.option('--status', help='Filter by artifact status')
 @click.option('--force/--no-force', default=False, help='Update even if embedding exists')
 @click.option('--dry-run/--no-dry-run', default=False, help='Show what would be updated without making changes')
-@click.option('--last', type=str, help='Filter items by time (e.g. "1d", "2h", "30m")')
+@click.option('--last', type=str, help='Filter posts by time (e.g. "1d", "2h", "30m")')
 @click.option('--offset', default=0, type=int, help='Offset for search results')
-@click.option('--limit', default=50, type=int, help='Maximum number of items to fetch')
+@click.option('--limit', default=50, type=int, help='Maximum number of posts to fetch')
 @click.pass_context
 def update_embeddings(ctx, project_id: int, batch_size: int, status: Optional[str],
                       force: bool, dry_run: bool,
@@ -676,7 +677,7 @@ def update_analytics(ctx, project_id: int):
             'sources_count': len(sources),
             'sources': {},
             'totals': {
-                'items': 0,
+                'posts': 0,
                 'artifacts': 0,
                 'specifications': 0
             }
@@ -692,7 +693,7 @@ def update_analytics(ctx, project_id: int):
                     metrics = updated_source['analysis_metadata']['metrics']
 
                     # Accumulate totals for project-level metrics
-                    project_metrics['totals']['items'] += metrics['counts']['items']
+                    project_metrics['totals']['posts'] += metrics['counts']['posts']
                     project_metrics['totals']['artifacts'] += metrics['counts']['artifacts']
                     project_metrics['totals']['specifications'] += metrics['counts']['specifications']
 
@@ -713,7 +714,7 @@ def update_analytics(ctx, project_id: int):
             # Print summary
             click.echo("\nAnalytics update completed:")
             click.echo(f"- Total Sources: {project_metrics['sources_count']}")
-            click.echo(f"- Total Items: {project_metrics['totals']['items']}")
+            click.echo(f"- Total Posts: {project_metrics['totals']['posts']}")
             click.echo(f"- Total Artifacts: {project_metrics['totals']['artifacts']}")
             click.echo(f"- Total Specifications: {project_metrics['totals']['specifications']}")
         else:

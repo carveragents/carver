@@ -51,13 +51,13 @@ class __NAME__Generator(BaseArtifactGenerator):
         # Validate required configuration parameters
         return all(k in config for k in self.required_config)
 
-    def generate(self, item: Dict[str, Any], config: Dict[str, Any],
+    def generate(self, post: Dict[str, Any], config: Dict[str, Any],
                 existing: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
-        Generate artifacts for the given item
+        Generate artifacts for the given post
 
         Args:
-            item: Content item dictionary
+            post: Content post dictionary
             config: Generator configuration
             existing: List of existing artifacts
 
@@ -73,7 +73,7 @@ class __NAME__Generator(BaseArtifactGenerator):
             "generator_id": "unique_id",  # Set appropriate ID
             "artifact_type": "{name.upper()}",
             "format": "text",  # or appropriate format
-            "title": f"{name.capitalize()}: {{item.get('title', 'Untitled')}}",
+            "title": f"{name.capitalize()}: {{post.get('title', 'Untitled')}}",
             "content": "Generated content here",
             "analysis_metadata": {
                 # Add relevant metadata

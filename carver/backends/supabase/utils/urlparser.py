@@ -293,7 +293,7 @@ class SourceURLParser:
                         'feed_link': feed.feed.get('link', ''),
                         'feed_updated': feed.feed.get('updated', ''),
                         'feed_language': feed.feed.get('language', ''),
-                        'recent_items': len(feed.entries),
+                        'recent_posts': len(feed.entries),
                         'last_entry_date': feed.entries[0].get('published', '') if feed.entries else '',
                         'fetched_at': datetime.utcnow().isoformat()
                     }

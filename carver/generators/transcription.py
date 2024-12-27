@@ -61,10 +61,10 @@ class TranscriptionGenerator(BaseArtifactGenerator):
         languages = config.get('languages', ['en', 'en-GB'])
         return languages
 
-    def generate(self, item: Dict[str, Any], config: Dict[str, Any], existing: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def generate(self, post: Dict[str, Any], config: Dict[str, Any], existing: List[Dict[str, Any]]) -> Dict[str, Any]:
 
-        print(f"[{self.name}] Generating for", item['content_identifier'])
-        videoid = item['content_identifier']
+        print(f"[{self.name}] Generating for", post['content_identifier'])
+        videoid = post['content_identifier']
         languages = config.get('languages', ['en', 'en-GB'])
 
         # Gather existing languages
@@ -88,7 +88,7 @@ class TranscriptionGenerator(BaseArtifactGenerator):
         for artifact in artifacts:
             artifact.update({
                 "artifact_type": "TRANSCRIPTION",
-                'title': f"Transcription: {item.get('title', 'Untitled')}",
+                'title': f"Transcription: {post.get('title', 'Untitled')}",
             })
 
         print(f"[{self.name}] Returning", len(artifacts), "artifacts")

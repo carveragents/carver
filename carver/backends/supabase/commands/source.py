@@ -9,7 +9,7 @@ from datetime import datetime
 import click
 from tabulate import tabulate
 
-from .item_manager import ItemManager
+from .post_manager import PostManager
 from ..utils import *
 
 PLATFORM_CHOICES = ['TWITTER', 'GITHUB', 'YOUTUBE', 'RSS', 'WEB', 'SUBSTACK']
@@ -19,7 +19,7 @@ SOURCE_TYPE_CHOICES = ['FEED', 'PROFILE', 'CHANNEL', 'REPOSITORY', 'PAGE', "NEWS
 @click.pass_context
 def source(ctx):
     """Manage sources in the system."""
-    ctx.obj['item_manager'] = ItemManager(ctx.obj['supabase'])
+    ctx.obj['post_manager'] = PostManager(ctx.obj['supabase'])
 
 @source.command()
 @click.option('--url', required=True, help='URL of the source')
@@ -269,12 +269,12 @@ def show(ctx, source_id: int):
 @source.command()
 @click.argument('source_id', type=int)
 @click.option('--fields', help='Comma-separated list of fields to sync')
-@click.option('--max-results', type=int, help='Maximum number of items to fetch')
+@click.option('--max-results', type=int, help='Maximum number of posts to fetch')
 @click.pass_context
-def sync_items(ctx, source_id: int, fields: Optional[str], max_results: Optional[int]):
-    """Sync items from a specific source."""
+def sync_posts(ctx, source_id: int, fields: Optional[str], max_results: Optional[int]):
+    """Sync posts from a specific source."""
     db = ctx.obj['supabase']
-    item_manager = ctx.obj['item_manager']
+    post_manager = ctx.obj['post_manager']
 
     try:
         # Verify source exists and is active
@@ -288,16 +288,16 @@ def sync_items(ctx, source_id: int, fields: Optional[str], max_results: Optional
             if not click.confirm("Continue anyway?"):
                 return
 
-        click.echo(f"\nSyncing items for source: {source['name']} (ID: {source_id})")
+        click.echo(f"\nSyncing posts for source: {source['name']} (ID: {source_id})")
 
         field_list = fields.split(',') if fields else None
         try:
-            added, updated = item_manager.sync_items(source_id, field_list, max_results)
-            click.echo(f"Successfully synced items:")
+            added, updated = post_manager.sync_posts(source_id, field_list, max_results)
+            click.echo(f"Successfully synced posts:")
             click.echo(f"- Added: {added}")
             click.echo(f"- Updated: {updated}")
         except Exception as e:
-            click.echo(f"Error syncing items: {str(e)}", err=True)
+            click.echo(f"Error syncing posts: {str(e)}", err=True)
 
     except Exception as e:
         traceback.print_exc()
@@ -325,7 +325,7 @@ def update_analytics(ctx, source_id: int):
         if updated_source and updated_source.get('analysis_metadata'):
             metrics = updated_source['analysis_metadata']['metrics']
             click.echo("\nAnalytics updated successfully:")
-            click.echo(f"- Active Items: {metrics['counts']['items']}")
+            click.echo(f"- Active Posts: {metrics['counts']['posts']}")
             click.echo(f"- Active Artifacts: {metrics['counts']['artifacts']}")
             click.echo(f"- Active Specifications: {metrics['counts']['specifications']}")
 

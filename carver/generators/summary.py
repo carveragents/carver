@@ -82,13 +82,13 @@ class SummaryGenerator(BaseArtifactGenerator):
 
         return ids
 
-    def generate(self, item: Dict[str, Any], config: Dict[str, Any],
+    def generate(self, post: Dict[str, Any], config: Dict[str, Any],
                  existing: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Generate summaries based on multiple prompts and configurations.
 
         Args:
-            item: Dictionary containing content to summarize
+            post: Dictionary containing content to summarize
             config: Dictionary containing summarization parameters including multiple prompts
             existing: List of existing artifacts
 
@@ -96,7 +96,7 @@ class SummaryGenerator(BaseArtifactGenerator):
             List of generated summary artifacts
         """
 
-        title = item['title']
+        title = post['title']
 
         # => First get the transcript
         transcript = None
@@ -122,7 +122,7 @@ of different outputs that you must generate based on the instructions
             generator_id = prompt_config['generator_id']
 
             # Check if this type of summary already exists
-            if self._artifact_exists(item, existing, generator_id):
+            if self._artifact_exists(post, existing, generator_id):
                 logger.info(f"Summary of type '{generator_id}' already exists")
                 continue
 
@@ -193,12 +193,12 @@ of different outputs that you must generate based on the instructions
 
         return new_artifacts
 
-    def _artifact_exists(self, item: Dict[str, Any],
+    def _artifact_exists(self, post: Dict[str, Any],
                          existing: List[Dict[str, Any]],
                          generator_id: str) -> bool:
         """Check if an artifact of given type and language already exists"""
 
-        print("item", item['id'],
+        print("post", post['id'],
               "generator_id", generator_id,
               "existing", [(artifact.get('generator_name'), artifact.get('generator_id')) for artifact in existing])
 
