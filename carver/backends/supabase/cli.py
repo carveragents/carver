@@ -13,7 +13,7 @@ def sb(ctx):
     """
     ctx.obj['supabase'] = SupabaseClient()
 
-sb.add_command(entity)
+sb.add_command(project)
 sb.add_command(source)
 sb.add_command(item)
 sb.add_command(artifact)

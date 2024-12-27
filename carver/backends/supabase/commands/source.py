@@ -23,12 +23,12 @@ def source(ctx):
 
 @source.command()
 @click.option('--url', required=True, help='URL of the source')
-@click.option('--entity-id', required=True, type=int, help='ID of the parent entity')
+@click.option('--project-id', required=True, type=int, help='ID of the parent project')
 @click.option('--name', help='Override the automatically inferred name')
 @click.option('--description', help='Description of the source')
 @click.option('--config', type=str, help='Additional JSON configuration to merge')
 @click.pass_context
-def add(ctx, url: str, entity_id: int, name: Optional[str],
+def add(ctx, url: str, project_id: int, name: Optional[str],
         description: Optional[str], config: Optional[str]):
     """Add a new source to the system. Source details will be inferred from the URL."""
     db = ctx.obj['supabase']
@@ -57,7 +57,7 @@ def add(ctx, url: str, entity_id: int, name: Optional[str],
         now = datetime.utcnow()
         source_info.update({
             'active': True,
-            'entity_id': entity_id,
+            'project_id': project_id,
             'analysis_metadata': {},
             'created_at': now.isoformat(),
             'updated_at': now.isoformat()
@@ -148,7 +148,7 @@ def update(ctx, source_id: int, activate: bool, deactivate: bool,
 
 @source.command()
 @click.option('--active/--inactive', default=None, help='Filter by active status')
-@click.option('--entity-id', type=int, help='Filter by entity ID')
+@click.option('--project-id', type=int, help='Filter by project ID')
 @click.option('--platform', type=click.Choice(PLATFORM_CHOICES))
 @click.option('--source-type', type=click.Choice(SOURCE_TYPE_CHOICES))
 @click.option('--search', help='Search in source names')
@@ -159,7 +159,7 @@ def update(ctx, source_id: int, activate: bool, deactivate: bool,
               default='table',
               help='Output format for the table')
 @click.pass_context
-def search(ctx, active: Optional[bool], entity_id: Optional[int],
+def search(ctx, active: Optional[bool], project_id: Optional[int],
            platform: Optional[str], source_type: Optional[str],
            search: Optional[str], updated_since: Optional[str],
            crawled_since: Optional[str], output_format: str):
@@ -174,7 +174,7 @@ def search(ctx, active: Optional[bool], entity_id: Optional[int],
         # Query sources
         sources = db.source_search(
             active=active,
-            entity_id=entity_id,
+            project_id=project_id,
             platform=platform,
             source_type=source_type,
             name=search,
@@ -184,15 +184,15 @@ def search(ctx, active: Optional[bool], entity_id: Optional[int],
 
         if sources:
             # Prepare table data
-            headers = ['ID', 'Name', 'Entity', 'Platform', 'Type', 'Active', 'Last Crawled', 'Updated']
+            headers = ['ID', 'Name', 'Project', 'Platform', 'Type', 'Active', 'Last Crawled', 'Updated']
             rows = []
 
             for source in sources:
-                entity_name = source['carver_entity']['name'] if source['carver_entity'] else 'N/A'
+                project_name = source['carver_project']['name'] if source['carver_project'] else 'N/A'
                 rows.append([
                     source['id'],
                     source['name'][:30] + ('...' if len(source['name']) > 30 else ''),
-                    f"{entity_name} ({source['entity_id']})",
+                    f"{project_name} ({source['project_id']})",
                     source['platform'],
                     source['source_type'],
                     '✓' if source['active'] else '✗',
@@ -223,7 +223,7 @@ def show(ctx, source_id: int):
             click.echo(f"Source with ID {source_id} not found", err=True)
             return
 
-        entity = source['carver_entity']
+        project = source['carver_project']
 
         # Basic information
         click.echo("\n=== Source Information ===")
@@ -238,12 +238,12 @@ def show(ctx, source_id: int):
         if source['description']:
             click.echo(f"\nDescription: {source['description']}")
 
-        # Entity information
-        click.echo("\n=== Parent Entity ===")
-        click.echo(f"ID: {entity['id']}")
-        click.echo(f"Name: {entity['name']}")
-        click.echo(f"Type: {entity['entity_type']}")
-        click.echo(f"Owner: {entity['owner']}")
+        # Project information
+        click.echo("\n=== Parent Project ===")
+        click.echo(f"ID: {project['id']}")
+        click.echo(f"Name: {project['name']}")
+        click.echo(f"Type: {project['project_type']}")
+        click.echo(f"Owner: {project['owner']}")
 
         # Timestamps
         click.echo("\n=== Timestamps ===")

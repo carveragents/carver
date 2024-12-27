@@ -19,24 +19,24 @@ from ..utils import *
 
 @click.group()
 @click.pass_context
-def entity(ctx):
-    """Manage entities in the system."""
+def project(ctx):
+    """Manage projects in the system."""
     ctx.obj['item_manager'] = ItemManager(ctx.obj['supabase'])
     ctx.obj['artifact_manager'] = ArtifactManager(ctx.obj['supabase'])
 
-@entity.command()
-@click.option('--name', required=True, help='Name of the entity')
-@click.option('--description', help='Description of the entity')
-@click.option('--owner', required=True, help='Owner of the entity')
-@click.option('--entity-type', required=True,
+@project.command()
+@click.option('--name', required=True, help='Name of the project')
+@click.option('--description', help='Description of the project')
+@click.option('--owner', required=True, help='Owner of the project')
+@click.option('--project-type', required=True,
               type=click.Choice(['PERSON', 'ORGANIZATION', 'PROJECT']),
-              help='Type of the entity')
-@click.option('--config', type=str, help='JSON configuration for the entity')
-@click.option('--metadata', type=str, help='JSON metadata for the entity')
+              help='Type of the project')
+@click.option('--config', type=str, help='JSON configuration for the project')
+@click.option('--metadata', type=str, help='JSON metadata for the project')
 @click.pass_context
-def add(ctx, name: str, description: Optional[str], owner: str, entity_type: str,
+def add(ctx, name: str, description: Optional[str], owner: str, project_type: str,
         config: Optional[str], metadata: Optional[str]):
-    """Add a new entity to the system."""
+    """Add a new project to the system."""
     db = ctx.obj['supabase']
 
     try:
@@ -50,19 +50,19 @@ def add(ctx, name: str, description: Optional[str], owner: str, entity_type: str
             'name': name,
             'description': description,
             'owner': owner,
-            'entity_type': entity_type,
+            'project_type': project_type,
             'config': config_json,
             'metadata': metadata_json,
             'created_at': now.isoformat(),
             'updated_at': now.isoformat()
         }
 
-        entity = db.entity_create(data)
+        project = db.project_create(data)
 
-        if entity:
-            click.echo(f"Successfully created entity: {name} (ID: {entity['id']})")
+        if project:
+            click.echo(f"Successfully created project: {name} (ID: {project['id']})")
         else:
-            click.echo("Error creating entity", err=True)
+            click.echo("Error creating project", err=True)
 
     except json.JSONDecodeError:
         click.echo("Error: Invalid JSON format in config or metadata", err=True)
@@ -70,24 +70,24 @@ def add(ctx, name: str, description: Optional[str], owner: str, entity_type: str
         traceback.print_exc()
         click.echo(f"Error: {str(e)}", err=True)
 
-@entity.command()
-@click.argument('entity_id', type=int)
+@project.command()
+@click.argument('project_id', type=int)
 @click.option('--activate', is_flag=True)
 @click.option('--deactivate', is_flag=True)
-@click.option('--name', help='New name for the entity')
-@click.option('--description', help='New description for the entity')
-@click.option('--owner', help='New owner for the entity')
-@click.option('--entity-type',
+@click.option('--name', help='New name for the project')
+@click.option('--description', help='New description for the project')
+@click.option('--owner', help='New owner for the project')
+@click.option('--project-type',
               type=click.Choice(['PERSON', 'ORGANIZATION', 'PROJECT']),
-              help='New type for the entity')
-@click.option('--config', help='New JSON configuration for the entity')
-@click.option('--metadata', help='New JSON metadata for the entity')
+              help='New type for the project')
+@click.option('--config', help='New JSON configuration for the project')
+@click.option('--metadata', help='New JSON metadata for the project')
 @click.pass_context
-def update(ctx, entity_id: int, activate: bool, deactivate: bool,
+def update(ctx, project_id: int, activate: bool, deactivate: bool,
            name: Optional[str], description: Optional[str],
-           owner: Optional[str], entity_type: Optional[str],
+           owner: Optional[str], project_type: Optional[str],
            config: Optional[str], metadata: Optional[str]):
-    """Update an existing entity."""
+    """Update an existing project."""
     db = ctx.obj['supabase']
 
     try:
@@ -103,19 +103,19 @@ def update(ctx, entity_id: int, activate: bool, deactivate: bool,
             update_data['description'] = description
         if owner:
             update_data['owner'] = owner
-        if entity_type:
-            update_data['entity_type'] = entity_type
+        if project_type:
+            update_data['project_type'] = project_type
         if config:
             update_data['config'] = json.loads(config)
         if metadata:
             update_data['metadata'] = json.loads(metadata)
 
-        entity = db.entity_update(entity_id, update_data)
+        project = db.project_update(project_id, update_data)
 
-        if entity:
-            click.echo(f"Successfully updated entity ID: {entity_id}")
+        if project:
+            click.echo(f"Successfully updated project ID: {project_id}")
         else:
-            click.echo("Error updating entity or entity not found", err=True)
+            click.echo("Error updating project or project not found", err=True)
 
     except json.JSONDecodeError:
         click.echo("Error: Invalid JSON format in config or metadata", err=True)
@@ -123,24 +123,24 @@ def update(ctx, entity_id: int, activate: bool, deactivate: bool,
         traceback.print_exc()
         click.echo(f"Error: {str(e)}", err=True)
 
-@entity.command()
+@project.command()
 @click.option('--active/--inactive', default=True, help='Filter by active status')
-@click.option('--entity-type',
+@click.option('--project-type',
               type=click.Choice(['PERSON', 'ORGANIZATION', 'PROJECT']),
-              help='Filter by entity type')
+              help='Filter by project type')
 @click.option('--owner', help='Filter by owner')
-@click.option('--search', help='Search in entity names')
-@click.option('--created-since', help='Show entities created since (ISO date or relative like "1d", "1w")')
-@click.option('--updated-since', help='Show entities updated since (ISO date or relative like "1d", "1w")')
+@click.option('--search', help='Search in project names')
+@click.option('--created-since', help='Show projects created since (ISO date or relative like "1d", "1w")')
+@click.option('--updated-since', help='Show projects updated since (ISO date or relative like "1d", "1w")')
 @click.option('--format', 'output_format',
               type=click.Choice(['table', 'grid', 'pipe', 'orgtbl', 'rst', 'mediawiki', 'html']),
               default='table',
               help='Output format for the table')
 @click.pass_context
-def search(ctx, active: Optional[bool], entity_type: Optional[str], owner: Optional[str],
+def search(ctx, active: Optional[bool], project_type: Optional[str], owner: Optional[str],
            search: Optional[str], created_since: Optional[str], updated_since: Optional[str],
            output_format: str):
-    """List entities with optional filters."""
+    """List projects with optional filters."""
     db = ctx.obj['supabase']
 
     try:
@@ -148,105 +148,105 @@ def search(ctx, active: Optional[bool], entity_type: Optional[str], owner: Optio
         created_since_dt = parse_date_filter(created_since) if created_since else None
         updated_since_dt = parse_date_filter(updated_since) if updated_since else None
 
-        # Query entities
-        entities = db.entity_search(
+        # Query projects
+        projects = db.project_search(
             active=active,
-            entity_type=entity_type,
+            project_type=project_type,
             owner=owner,
             name=search,
             created_since=created_since_dt,
             updated_since=updated_since_dt
         )
 
-        if entities:
+        if projects:
             # Prepare table data
             headers = ['ID', 'Name', 'Type', 'Owner', 'Active', 'Created', 'Updated', 'Description']
             rows = []
 
-            for entity in entities:
+            for project in projects:
                 rows.append([
-                    entity['id'],
-                    entity['name'],
-                    entity['entity_type'],
-                    entity['owner'],
-                    '✓' if entity['active'] else '✗',
-                    format_datetime(entity['created_at']),
-                    format_datetime(entity['updated_at']),
-                    (entity.get('description') or '')[:50] + ('...' if entity.get('description', '') and len(entity['description']) > 50 else '')
+                    project['id'],
+                    project['name'],
+                    project['project_type'],
+                    project['owner'],
+                    '✓' if project['active'] else '✗',
+                    format_datetime(project['created_at']),
+                    format_datetime(project['updated_at']),
+                    (project.get('description') or '')[:50] + ('...' if project.get('description', '') and len(project['description']) > 50 else '')
                 ])
 
             # Print table
             click.echo(tabulate(rows, headers=headers, tablefmt=output_format))
-            click.echo(f"\nTotal entities: {len(entities)}")
+            click.echo(f"\nTotal projects: {len(projects)}")
         else:
-            click.echo("No entities found")
+            click.echo("No projects found")
 
     except Exception as e:
         traceback.print_exc()
         click.echo(f"Error: {str(e)}", err=True)
 
-@entity.command()
-@click.argument('entity_id', type=int)
+@project.command()
+@click.argument('project_id', type=int)
 @click.pass_context
-def show(ctx, entity_id: int):
-    """Show detailed information about a specific entity."""
+def show(ctx, project_id: int):
+    """Show detailed information about a specific project."""
     db = ctx.obj['supabase']
 
     try:
-        entity = db.entity_get(entity_id)
-        if not entity:
-            click.echo(f"Entity with ID {entity_id} not found", err=True)
+        project = db.project_get(project_id)
+        if not project:
+            click.echo(f"Project with ID {project_id} not found", err=True)
             return
 
         # Basic information
-        click.echo("\n=== Entity Information ===")
-        click.echo(f"ID: {entity['id']}")
-        click.echo(f"Name: {entity['name']}")
-        click.echo(f"Type: {entity['entity_type']}")
-        click.echo(f"Owner: {entity['owner']}")
-        click.echo(f"Active: {'Yes' if entity['active'] else 'No'}")
+        click.echo("\n=== Project Information ===")
+        click.echo(f"ID: {project['id']}")
+        click.echo(f"Name: {project['name']}")
+        click.echo(f"Type: {project['project_type']}")
+        click.echo(f"Owner: {project['owner']}")
+        click.echo(f"Active: {'Yes' if project['active'] else 'No'}")
 
-        if entity['description']:
-            click.echo(f"\nDescription: {entity['description']}")
+        if project['description']:
+            click.echo(f"\nDescription: {project['description']}")
 
         # Timestamps
         click.echo("\n=== Timestamps ===")
-        click.echo(f"Created: {format_datetime(entity['created_at'])}")
-        click.echo(f"Updated: {format_datetime(entity['updated_at'])}")
+        click.echo(f"Created: {format_datetime(project['created_at'])}")
+        click.echo(f"Updated: {format_datetime(project['updated_at'])}")
 
         # Configuration
-        if entity.get('config'):
+        if project.get('config'):
             click.echo("\n=== Configuration ===")
-            click.echo(json.dumps(entity['config'], indent=2))
+            click.echo(json.dumps(project['config'], indent=2))
 
         # Metadata
-        if entity.get('metadata'):
+        if project.get('metadata'):
             click.echo("\n=== Metadata ===")
-            click.echo(json.dumps(entity['metadata'], indent=2))
+            click.echo(json.dumps(project['metadata'], indent=2))
 
     except Exception as e:
         traceback.print_exc()
         click.echo(f"Error: {str(e)}", err=True)
 
-@entity.command()
-@click.argument('entity_id', type=int)
+@project.command()
+@click.argument('project_id', type=int)
 @click.option('--fields', help='Comma-separated list of fields to sync for each source')
 @click.option('--max-results', type=int, help='Maximum number of items to fetch per source')
 @click.pass_context
-def sync_items(ctx, entity_id: int, fields: Optional[str], max_results: Optional[int]):
-    """Sync items from all active sources for an entity."""
+def sync_items(ctx, project_id: int, fields: Optional[str], max_results: Optional[int]):
+    """Sync items from all active sources for an project."""
     db = ctx.obj['supabase']
     item_manager = ctx.obj['item_manager']
 
     try:
-        # Get all active sources for the entity
+        # Get all active sources for the project
         sources = db.source_search(
             active=True,
-            entity_id=entity_id
+            project_id=project_id
         )
 
         if not sources:
-            click.echo(f"No active sources found for entity {entity_id}")
+            click.echo(f"No active sources found for project {project_id}")
             return
 
         total_added = 0
@@ -276,29 +276,29 @@ def sync_items(ctx, entity_id: int, fields: Optional[str], max_results: Optional
         traceback.print_exc()
         click.echo(f"Error: {str(e)}", err=True)
 
-@entity.command()
-@click.argument('entity_id', type=int)
+@project.command()
+@click.argument('project_id', type=int)
 @click.option('--max-retries', type=int, default=3,
               help='Maximum number of retries for dependency resolution')
 @click.option('--last', type=str, help='Filter items by time (e.g. "1d", "2h", "30m")')
 @click.option('--offset', default=0, type=int, help='Offset for search results')
 @click.option('--limit', default=50, type=int, help='Maximum number of items to fetch')
 @click.pass_context
-def generate_bulk(ctx, entity_id: int, max_retries: int, last: Optional[str],
+def generate_bulk(ctx, project_id: int, max_retries: int, last: Optional[str],
                  offset: int, limit: int):
-    """Generate bulk content for all active specifications of an entity in dependency order."""
+    """Generate bulk content for all active specifications of an project in dependency order."""
     db = ctx.obj['supabase']
     artifact_manager = ctx.obj['artifact_manager']
 
     try:
-        # Get all active specifications for the entity
+        # Get all active specifications for the project
         specs = db.specification_search(
-            entity_id=entity_id,
+            project_id=project_id,
             active=True
         )
 
         if not specs:
-            click.echo(f"No active specifications found for entity {entity_id}")
+            click.echo(f"No active specifications found for project {project_id}")
             return
 
         click.echo(f"Found {len(specs)} specs")
@@ -391,24 +391,24 @@ def validate_choice(value):
         raise click.BadParameter(f"Invalid choice: {value}. Please select from {', '.join(valid_options)}.")
     return value.lower()
 
-@entity.command()
-@click.argument('entity_id', type=int)
+@project.command()
+@click.argument('project_id', type=int)
 @click.argument('keywords', nargs=-1, required=True)
 @click.option('--what', required=True,
               default='playlist',
               type=click.Choice(['playlist', 'channel']))
 @click.option('--max-results', '-m', default=10, help='Maximum number of playlists to discover')
 @click.pass_context
-def discover_playlists(ctx, entity_id: int, keywords: tuple, what: str,
+def discover_playlists(ctx, project_id: int, keywords: tuple, what: str,
                        max_results: int):
-    """Discover YouTube playlists based on keywords and create sources for the entity."""
+    """Discover YouTube playlists based on keywords and create sources for the project."""
     db = ctx.obj['supabase']
 
     try:
-        # Get entity
-        entity = db.entity_get(entity_id)
-        if not entity:
-            click.echo(f"Entity with ID {entity_id} not found", err=True)
+        # Get project
+        project = db.project_get(project_id)
+        if not project:
+            click.echo(f"Project with ID {project_id} not found", err=True)
             return
 
 
@@ -454,7 +454,7 @@ def discover_playlists(ctx, entity_id: int, keywords: tuple, what: str,
                     'name': playlist['title'],
                     'description': playlist['description'],
                     'platform': 'youtube',
-                    'entity_id': entity_id,
+                    'project_id': project_id,
                     'active': True,
                     'url': url,
                     'source_type': 'playlist',
@@ -479,26 +479,26 @@ def discover_playlists(ctx, entity_id: int, keywords: tuple, what: str,
         traceback.print_exc()
         click.echo(f"Error: {str(e)}", err=True)
 
-@entity.command("search-similar")
-@click.argument('entity_id', type=int)
+@project.command("search-similar")
+@click.argument('project_id', type=int)
 @click.argument('query', type=str)
 @click.option('--threshold', type=float, default=0.7, help='Similarity threshold')
 @click.option('--limit', type=int, default=10, help='Maximum results to return')
 @click.pass_context
-def search_similar(ctx, entity_id: int, query: str, threshold: float, limit: int):
-    """Search for similar artifacts across all sources in an entity."""
+def search_similar(ctx, project_id: int, query: str, threshold: float, limit: int):
+    """Search for similar artifacts across all sources in an project."""
     db = ctx.obj['supabase']
     artifact_manager = ctx.obj['artifact_manager']
 
     try:
-        # Get all specs for the entity
+        # Get all specs for the project
         specs = db.specification_search(
-            entity_id=entity_id,
+            project_id=project_id,
             active=True
         )
 
         if not specs:
-            click.echo("No active specifications found for entity")
+            click.echo("No active specifications found for project")
             return
 
         specmap = {spec['id']: spec for spec in specs}
@@ -539,8 +539,8 @@ def search_similar(ctx, entity_id: int, query: str, threshold: float, limit: int
         traceback.print_exc()
         click.echo(f"Error: {str(e)}", err=True)
 
-@entity.command('update-embeddings')
-@click.argument('entity_id', type=int)
+@project.command('update-embeddings')
+@click.argument('project_id', type=int)
 @click.option('--batch-size', default=100, type=int, help='Number of artifacts to process in each batch')
 @click.option('--status', help='Filter by artifact status')
 @click.option('--force/--no-force', default=False, help='Update even if embedding exists')
@@ -549,35 +549,35 @@ def search_similar(ctx, entity_id: int, query: str, threshold: float, limit: int
 @click.option('--offset', default=0, type=int, help='Offset for search results')
 @click.option('--limit', default=50, type=int, help='Maximum number of items to fetch')
 @click.pass_context
-def update_embeddings(ctx, entity_id: int, batch_size: int, status: Optional[str],
+def update_embeddings(ctx, project_id: int, batch_size: int, status: Optional[str],
                       force: bool, dry_run: bool,
                       last: Optional[str], offset: int, limit: int):
     """
-    Bulk update embeddings for all artifacts under an entity's sources.
+    Bulk update embeddings for all artifacts under an project's sources.
 
     Example:
-    carver entity update-embeddings 123 --batch-size 50 --status published
+    carver project update-embeddings 123 --batch-size 50 --status published
     """
     db = ctx.obj['supabase']
     artifact_manager = ctx.obj['artifact_manager']
 
     try:
-        # Get the entity first
-        entity = db.entity_get(entity_id)
-        if not entity:
-            click.echo(f"Entity {entity_id} not found", err=True)
+        # Get the project first
+        project = db.project_get(project_id)
+        if not project:
+            click.echo(f"Project {project_id} not found", err=True)
             return
 
-        click.echo(f"\nProcessing embeddings for entity: {entity['name']}")
+        click.echo(f"\nProcessing embeddings for project: {project['name']}")
 
-        # Get all active specifications for the entity's sources
+        # Get all active specifications for the project's sources
         specs = db.specification_search(
-            entity_id=entity_id,
+            project_id=project_id,
             active=True
         )
 
         if not specs:
-            click.echo("No active specifications found for entity")
+            click.echo("No active specifications found for project")
             return
 
         click.echo(f"Found {len(specs)} active specifications")
@@ -642,36 +642,36 @@ def update_embeddings(ctx, entity_id: int, batch_size: int, status: Optional[str
         traceback.print_exc()
         click.echo(f"Error updating embeddings: {str(e)}", err=True)
 
-@entity.command()
-@click.argument('entity_id', type=int)
+@project.command()
+@click.argument('project_id', type=int)
 @click.pass_context
-def update_analytics(ctx, entity_id: int):
-    """Update analytics metadata for all sources of an entity."""
+def update_analytics(ctx, project_id: int):
+    """Update analytics metadata for all sources of an project."""
     db = ctx.obj['supabase']
 
     try:
-        # Verify entity exists
-        entity = db.entity_get(entity_id)
-        if not entity:
-            click.echo(f"Entity {entity_id} not found", err=True)
+        # Verify project exists
+        project = db.project_get(project_id)
+        if not project:
+            click.echo(f"Project {project_id} not found", err=True)
             return
 
-        click.echo(f"\nUpdating analytics for entity: {entity['name']} (ID: {entity_id})")
+        click.echo(f"\nUpdating analytics for project: {project['name']} (ID: {project_id})")
 
-        # Get all sources for this entity
+        # Get all sources for this project
         sources = db.source_search(
-            entity_id=entity_id,
+            project_id=project_id,
             active=True,
             fields=['id', 'name']
         )
 
         if not sources:
-            click.echo("No sources found for this entity")
+            click.echo("No sources found for this project")
             return
 
         click.echo(f"Found {len(sources)} sources to process")
 
-        entity_metrics = {
+        project_metrics = {
             'last_update': datetime.utcnow().isoformat(),
             'sources_count': len(sources),
             'sources': {},
@@ -691,33 +691,33 @@ def update_analytics(ctx, entity_id: int):
                 if updated_source and updated_source.get('analysis_metadata'):
                     metrics = updated_source['analysis_metadata']['metrics']
 
-                    # Accumulate totals for entity-level metrics
-                    entity_metrics['totals']['items'] += metrics['counts']['items']
-                    entity_metrics['totals']['artifacts'] += metrics['counts']['artifacts']
-                    entity_metrics['totals']['specifications'] += metrics['counts']['specifications']
+                    # Accumulate totals for project-level metrics
+                    project_metrics['totals']['items'] += metrics['counts']['items']
+                    project_metrics['totals']['artifacts'] += metrics['counts']['artifacts']
+                    project_metrics['totals']['specifications'] += metrics['counts']['specifications']
 
                     # Store summarized metrics for this source
-                    entity_metrics['sources'][source['id']] = {
+                    project_metrics['sources'][source['id']] = {
                         'name': source['name'],
                         'counts': metrics['counts']
                     }
 
-        # Update entity metadata
-        entity_analytics = {
-            'metrics': entity_metrics,
+        # Update project metadata
+        project_analytics = {
+            'metrics': project_metrics,
         }
 
-        entity = db.entity_update_metadata(entity_id, entity_analytics)
+        project = db.project_update_metadata(project_id, project_analytics)
 
-        if entity:
+        if project:
             # Print summary
             click.echo("\nAnalytics update completed:")
-            click.echo(f"- Total Sources: {entity_metrics['sources_count']}")
-            click.echo(f"- Total Items: {entity_metrics['totals']['items']}")
-            click.echo(f"- Total Artifacts: {entity_metrics['totals']['artifacts']}")
-            click.echo(f"- Total Specifications: {entity_metrics['totals']['specifications']}")
+            click.echo(f"- Total Sources: {project_metrics['sources_count']}")
+            click.echo(f"- Total Items: {project_metrics['totals']['items']}")
+            click.echo(f"- Total Artifacts: {project_metrics['totals']['artifacts']}")
+            click.echo(f"- Total Specifications: {project_metrics['totals']['specifications']}")
         else:
-            click.echo("Error updating entity analytics", err=True)
+            click.echo("Error updating project analytics", err=True)
 
     except Exception as e:
         traceback.print_exc()

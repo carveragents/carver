@@ -9,7 +9,7 @@ from .generators.cli import generator
 @click.group()
 @click.pass_context
 def cli(ctx):
-    """Carver CLI - Manage your content entities, sources, items, and artifacts."""
+    """Carver CLI - Manage your content projects, sources, items, and artifacts."""
     ctx.ensure_object(dict)
 
 

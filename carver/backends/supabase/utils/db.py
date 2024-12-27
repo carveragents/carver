@@ -49,31 +49,31 @@ class SupabaseClient:
         if hasattr(self, 'pool'):
             self.pool.closeall()
 
-    # Entity methods
-    def entity_get(self, entity_id: int) -> Dict[str, Any]:
-        """Get a single entity by ID"""
-        result = self.client.table('carver_entity') \
+    # Project methods
+    def project_get(self, project_id: int) -> Dict[str, Any]:
+        """Get a single project by ID"""
+        result = self.client.table('carver_project') \
             .select('*') \
-            .eq('id', entity_id) \
+            .eq('id', project_id) \
             .execute()
         return result.data[0] if result.data else None
 
-    def entity_search(self,
+    def project_search(self,
                       active: Optional[bool] = None,
-                      entity_type: Optional[str] = None,
+                      project_type: Optional[str] = None,
                       owner: Optional[str] = None,
                       name: Optional[str] = None,
                       created_since: Optional[datetime] = None,
                       updated_since: Optional[datetime] = None,
                       fields: Optional[List[str]] = None) -> List[Dict[str, Any]]:
-        """Search entities with various filters"""
+        """Search projects with various filters"""
         select_statement = ', '.join(fields) if fields else '*'
-        query = self.client.table('carver_entity').select(select_statement)
+        query = self.client.table('carver_project').select(select_statement)
 
         if active is not None:
             query = query.eq('active', active)
-        if entity_type:
-            query = query.eq('entity_type', entity_type)
+        if project_type:
+            query = query.eq('project_type', project_type)
         if owner:
             query = query.ilike('owner', f'%{owner}%')
         if name:
@@ -86,29 +86,29 @@ class SupabaseClient:
         result = query.execute()
         return result.data
 
-    def entity_create(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Create a new entity"""
-        result = self.client.table('carver_entity').insert(data).execute()
+    def project_create(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a new project"""
+        result = self.client.table('carver_project').insert(data).execute()
         return result.data[0] if result.data else None
 
-    def entity_update(self, entity_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Update an existing entity"""
-        result = self.client.table('carver_entity') \
+    def project_update(self, project_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Update an existing project"""
+        result = self.client.table('carver_project') \
             .update(data) \
-            .eq('id', entity_id) \
+            .eq('id', project_id) \
             .execute()
         return result.data[0] if result.data else None
 
-    def entity_update_metadata(self, entity_id: int, metadata: Dict[str, Any]) -> Dict[str, Any]:
-        """Update entity's metadata"""
-        current = self.entity_get(entity_id)
+    def project_update_metadata(self, project_id: int, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """Update project's metadata"""
+        current = self.project_get(project_id)
         if not current:
             return None
 
         existing_metadata = current.get('metadata', {}) or {}
         updated_metadata = {**existing_metadata, **metadata}
 
-        return self.entity_update(entity_id, {
+        return self.project_update(project_id, {
             'metadata': updated_metadata,
             'updated_at': datetime.utcnow().isoformat()
         })
@@ -117,14 +117,14 @@ class SupabaseClient:
     def source_get(self, source_id: int) -> Dict[str, Any]:
         """Get a single source by ID"""
         result = self.client.table('carver_source') \
-            .select('*, carver_entity(*)') \
+            .select('*, carver_project(*)') \
             .eq('id', source_id) \
             .execute()
         return result.data[0] if result.data else None
 
     def source_search(self,
                       active: Optional[bool] = None,
-                      entity_id: Optional[int] = None,
+                      project_id: Optional[int] = None,
                       platform: Optional[str] = None,
                       source_type: Optional[str] = None,
                       name: Optional[str] = None,
@@ -134,20 +134,20 @@ class SupabaseClient:
         """Search sources with various filters"""
         # Build the select statement
         if fields:
-            # If fields are specified but 'carver_entity' isn't in them, add it with basic fields
+            # If fields are specified but 'carver_project' isn't in them, add it with basic fields
             field_list = fields.copy()
-            if 'carver_entity' not in field_list:
-                field_list.append('carver_entity(id, name)')
+            if 'carver_project' not in field_list:
+                field_list.append('carver_project(id, name)')
             select_statement = ', '.join(field_list)
         else:
-            select_statement = '*, carver_entity(*)'
+            select_statement = '*, carver_project(*)'
 
         query = self.client.table('carver_source').select(select_statement)
 
         if active is not None:
             query = query.eq('active', active)
-        if entity_id:
-            query = query.eq('entity_id', entity_id)
+        if project_id:
+            query = query.eq('project_id', project_id)
         if platform:
             query = query.ilike('platform', platform)
         if source_type:
@@ -587,7 +587,7 @@ class SupabaseClient:
 
     def specification_search(self,
                           source_id: Optional[int] = None,
-                          entity_id: Optional[int] = None,
+                          project_id: Optional[int] = None,
                           spec_id: Optional[int] = None,
                           name: Optional[str] = None,
                           active: Optional[bool] = None,
@@ -603,10 +603,10 @@ class SupabaseClient:
                 field_list = fields.copy()
                 # If fields are specified but related tables aren't included, add minimal fields
                 if 'carver_source' not in field_list:
-                    field_list.append('carver_source(id, name, carver_entity(id, name))')
+                    field_list.append('carver_source(id, name, carver_project(id, name))')
                 select_statement = ', '.join(field_list)
             else:
-                select_statement = '*, carver_source!inner(*, carver_entity(*))'
+                select_statement = '*, carver_source!inner(*, carver_project(*))'
 
             query = self.client.table('carver_artifact_specification').select(select_statement)
 
@@ -614,8 +614,8 @@ class SupabaseClient:
                 query = query.eq('id', spec_id)
             if source_id:
                 query = query.eq('source_id', source_id)
-            if entity_id:
-                query = query.eq('carver_source.entity_id', entity_id)
+            if project_id:
+                query = query.eq('carver_source.project_id', project_id)
             if name:
                 query = query.or_(f'name.ilike.%{name}%,description.ilike.%{name}%')
             if active is not None:
