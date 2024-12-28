@@ -604,7 +604,7 @@ def update_embeddings(ctx, project_id: int, batch_size: int, status: Optional[st
                     has_embedding=False if not force else None
                 )
             if len(artifacts) == 0:
-                print("[{spec['name']}] Found no artifacts to process")
+                print(f"[{spec['name']}] Found no artifacts to process")
                 continue
 
             print(f"[{spec['name']}] Updating {len(artifacts)}")
