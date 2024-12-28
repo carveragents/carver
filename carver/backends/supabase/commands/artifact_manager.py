@@ -390,7 +390,15 @@ class ArtifactManager:
                             continue
 
                         # Generate embedding
-                        embedding = get_embedding(artifact['content'][:max_content_size])
+                        text = ""
+                        if artifact['name']:
+                            text += artifact['name'] + "\n"
+
+                        if artifact['title'] and artifact['title'] != artifact['name']:
+                            text += artifact['title'] + "\n"
+                        text += artifact['content']
+                        text = text[:max_content_size]
+                        embedding = get_embedding(text)
 
                         batch_updates.append({
                             'id': artifact['id'],
