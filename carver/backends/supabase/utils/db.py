@@ -219,6 +219,7 @@ class SupabaseClient:
                         'specifications': metrics['active_specs_count']
                     },
                     'distribution': {
+                        'artifact_spec': metrics['artifact_spec_distribution'],
                         'artifact_type': metrics['artifact_type_distribution'],
                         'artifact_status': metrics['artifact_status_distribution']
                     },
