@@ -28,7 +28,13 @@ def run_openai_summarize(system_prompt, user_prompt):
         response_format={"type": "json_object"}
     )
 
-    summary = json.loads(response.choices[0].message.content)
+    try:
+        text = response.choices[0].message.content
+        summary = json.loads(text)
+    except:
+        print("Error! Raw response received:\n{text}")
+        raise
+
     return summary
 
 def run_llm_summarize(system_prompt, user_prompt):
