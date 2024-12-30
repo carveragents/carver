@@ -22,6 +22,9 @@ class PostManager:
         Sync posts for a source
         Returns tuple of (posts_added, posts_updated)
         """
+
+        now = datetime.utcnow().isoformat()
+
         # Get source information
         source = self.db.source_get(source_id)
         if not source:
@@ -56,6 +59,12 @@ class PostManager:
         seen = {}
 
         for post in new_posts:
+
+            if 'created_at' not in post:
+                post['created_at'] = now
+
+            if 'updated_at' not in post:
+                post['updated_at'] = now
 
             # Fix missing columns
             post['name'] = post['title']

@@ -10,6 +10,8 @@ import click
 from tabulate import tabulate
 
 from .post_manager import PostManager
+from .artifact_manager import ArtifactManager
+
 from ..utils import *
 
 PLATFORM_CHOICES = ['TWITTER', 'GITHUB', 'YOUTUBE', 'RSS', 'WEB', 'SUBSTACK']
@@ -20,6 +22,7 @@ SOURCE_TYPE_CHOICES = ['FEED', 'PROFILE', 'CHANNEL', 'REPOSITORY', 'PAGE', "NEWS
 def source(ctx):
     """Manage sources in the system."""
     ctx.obj['post_manager'] = PostManager(ctx.obj['supabase'])
+    ctx.obj['artifact_manager'] = ArtifactManager(ctx.obj['supabase'])
 
 @source.command()
 @click.option('--url', required=True, help='URL of the source')
@@ -338,6 +341,115 @@ def update_analytics(ctx, source_id: int):
                 click.echo(f"- {status}: {count}")
         else:
             click.echo("Error updating source analytics", err=True)
+
+    except Exception as e:
+        traceback.print_exc()
+        click.echo(f"Error: {str(e)}", err=True)
+
+@source.command()
+@click.argument('source_id', type=int)
+@click.option('--max-retries', type=int, default=3,
+              help='Maximum number of retries for dependency resolution')
+@click.option('--last', type=str, help='Filter posts by time (e.g. "1d", "2h", "30m")')
+@click.option('--offset', default=0, type=int, help='Offset for search results')
+@click.option('--limit', default=50, type=int, help='Maximum number of posts to fetch')
+@click.option('--generator-name', type=str, help='Optional generator name to filter specifications')
+@click.pass_context
+def generate_bulk(ctx, source_id: int, max_retries: int, last: Optional[str],
+                 offset: int, limit: int, generator_name: Optional[str]):
+    """Generate bulk content for all active specifications of a source in dependency order."""
+    db = ctx.obj['supabase']
+    artifact_manager = ctx.obj['artifact_manager']
+
+    try:
+        # Get source details
+        source = db.source_get(source_id)
+        if not source:
+            click.echo(f"Source {source_id} not found")
+            return
+
+        # Get all active specifications for the source
+        specs = db.specification_search(
+            source_id=source_id,
+            active=True
+        )
+
+        if not specs:
+            click.echo("No active specifications found for source")
+            return
+
+        # Filter specs by generator if specified
+        if generator_name:
+            specs = [s for s in specs if s['config'].get('generator') == generator_name]
+            if not specs:
+                click.echo(f"No active specifications found for generator {generator_name}")
+                return
+
+        click.echo(f"Found {len(specs)} active specifications")
+
+        # Sort specifications by dependencies
+        try:
+            sorted_specs_ids = topological_sort(specs)
+        except ValueError as e:
+            click.echo(f"Error in dependency resolution: {str(e)}", err=True)
+            return
+
+        # Create a map of spec ID to spec data
+        spec_map = {spec['id']: spec for spec in specs}
+
+        # Get posts needing artifacts
+        time_filter = parse_date_filter(last) if last else None
+        posts = db.post_search_with_artifacts(
+            source_id=source_id,
+            modified_after=time_filter,
+            offset=offset,
+            limit=limit
+        )
+
+        if not posts:
+            click.echo("No posts found requiring artifact generation")
+            return
+
+        click.echo(f"Found {len(posts)} posts to process")
+
+        # Process specifications in dependency order
+        total_generated = 0
+        failed_specs = []
+
+        label = f"[{source['name']}]"
+
+        for spec_id in sorted_specs_ids:
+            if spec_id not in spec_map:
+                continue
+
+            spec = spec_map[spec_id]
+            click.echo(f"\n{label} Processing Specification [{spec_id}] {spec['name']}")
+
+            retry_count = 0
+            success = False
+
+            while retry_count < max_retries and not success:
+                try:
+                    results = artifact_manager.artifact_bulk_create_from_spec(
+                        spec,
+                        posts,
+                        None  # Use default generator from spec
+                    )
+                    total_generated += len(results)
+                    click.echo(f"Generated {len(results)} artifacts")
+                    success = True
+                except Exception as e:
+                    retry_count += 1
+                    if retry_count < max_retries:
+                        click.echo(f"Retry {retry_count}/{max_retries} for spec {spec['id']}")
+                    else:
+                        click.echo(f"Failed to process spec {spec['id']} after {max_retries} attempts: {str(e)}", err=True)
+                        failed_specs.append(spec['id'])
+
+        click.echo(f"\nBulk generation completed")
+        click.echo(f"Total artifacts generated: {total_generated}")
+        if failed_specs:
+            click.echo(f"Failed specifications: {failed_specs}")
 
     except Exception as e:
         traceback.print_exc()

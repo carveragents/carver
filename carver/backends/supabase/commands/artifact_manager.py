@@ -69,6 +69,7 @@ class ArtifactManager:
                                        posts: List[Dict[str, Any]],
                                        generator_name: Optional[str],
                                        delay: int = 5, # seconds
+                                       max_content_size: int = 8192,
                                        ) -> List[Dict[str, Any]]:
         """Generate artifacts for multiple posts using a specification"""
 
@@ -93,6 +94,7 @@ class ArtifactManager:
         newartifacts = False
         completelist = set()
         created = []
+        now = datetime.utcnow().isoformat()
 
         for idx, post in enumerate(posts):
             existing_artifacts = post['artifacts']
@@ -117,7 +119,7 @@ class ArtifactManager:
                     artifacts_data = [artifacts_data]
 
                 if len(artifacts_data) == 0:
-                    print(f"[{idx}] Skipping. Nothing to do")
+                    print(f"[{idx}] Skipping. No artifacts need to be created")
                     continue
 
                 for artifact_data in artifacts_data:
@@ -128,14 +130,24 @@ class ArtifactManager:
                         continue
 
                     completelist.add(rec)
-                    print(f"[{idx}] Adding", rec)
 
                     # Generate embedding for content
                     try:
-                        content_embedding = get_embedding(artifact_data['content'])
+                        text = ""
+                        if 'name' in artifact_data and artifact_data['name']:
+                            text += artifact_data['name'] + "\n"
+
+                        if 'title' in artifact_data and artifact_data['title'] not in text:
+                            text += artifact_data['title'] + "\n"
+
+                        text += artifact_data['content']
+                        text = text[:max_content_size]
+                        content_embedding = get_embedding(text)
                     except Exception as e:
+                        traceback.print_exc()
                         print(f"Error generating embedding: {str(e)}")
                         content_embedding = None
+                        continue
 
                     artifact = {
                         'active': True,
@@ -154,28 +166,33 @@ class ArtifactManager:
                         'status':         'draft',
                         'version':        1,
                         'analysis_metadata': artifact_data.get('analysis_metadata'),
-                        'artifact_metrics':  artifact_data.get('artifact_metrics')
+                        'artifact_metrics':  artifact_data.get('artifact_metrics'),
+                        'created_at':      now,
+                        'updated_at':      now,
                     }
                     artifacts_to_create.append(artifact)
                     newartifacts = True
+                    print(f"[{idx}] Adding", rec, "Total", len(artifacts_to_create))
 
                 if idx > 0 and idx % 10 == 0:
                     print(f"[posts: {idx}] New artifacts to create {len(artifacts_to_create)}")
                     if newartifacts:
                         inc_created = self.db.artifact_bulk_create(artifacts_to_create)
                         created += inc_created
+                        print(f"[posts: {idx}] Created {len(inc_created)}")
                         artifacts_to_create = []
                         if delay > 0:
                             time.sleep(delay)
-
-                    newartifacts = False
-
+                        newartifacts = False
 
             except Exception as e:
-                traceback.print_exc()
-                errors.append(f"Error processing post {post_id}: {str(e)}")
-                raise
+                #traceback.print_exc()
+                errors.append(f"Error processing post {post_id}: {str(e)}"[:100])
 
+        if newartifacts:
+            inc_created = self.db.artifact_bulk_create(artifacts_to_create)
+            created += inc_created
+            print(f"[posts: {idx}] Created {len(inc_created)}")
 
         if errors:
             print("Generation errors occurred:", errors)

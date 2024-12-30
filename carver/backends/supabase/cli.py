@@ -16,4 +16,5 @@ def sb(ctx):
 sb.add_command(project)
 sb.add_command(source)
 sb.add_command(post)
+sb.add_command(spec)
 sb.add_command(artifact)

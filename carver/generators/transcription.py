@@ -82,8 +82,7 @@ class TranscriptionGenerator(BaseArtifactGenerator):
             print(f"[{self.name}] Nothing to do")
             return []
 
-        print("Getting transcripts from youtube")
-
+        # print("Getting transcripts from youtube")
         artifacts = self.get_transcripts(videoid, languages=missing_languages)
         for artifact in artifacts:
             artifact.update({
