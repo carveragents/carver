@@ -7,6 +7,7 @@ from .base import BaseArtifactGenerator
 from .thread import ThreadGenerator
 from .summary import SummaryGenerator
 from .transcription import TranscriptionGenerator
+from .knowledgegraph import KnowledgeGraphGenerator
 
 class ArtifactGeneratorFactory:
     """Factory for creating artifact generators"""
@@ -15,6 +16,7 @@ class ArtifactGeneratorFactory:
     def get_generator(cls, name: str) -> BaseArtifactGenerator:
         classes = BaseArtifactGenerator.__subclasses__()
         for cls in classes:
+            # print(cls, cls.name)
             if cls.name == name:
                 return cls()
 

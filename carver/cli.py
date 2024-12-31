@@ -1,10 +1,13 @@
 import os
 import sys
+import logging
 
 import click
 
 from .backends.supabase.cli import sb
 from .generators.cli import generator
+
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
 @click.group()
 @click.pass_context

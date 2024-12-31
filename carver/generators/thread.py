@@ -17,6 +17,12 @@ class ThreadGenerator(BaseArtifactGenerator):
     supported_source_types = ['*']
     required_config = ['languages', "prompt"]
 
+    def generate_bulk(self, posts: List[Dict[str, Any]],
+                     config: Dict[str, Any],
+                     existing_map: Dict[int, List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+        """Generate knowledge graph from multiple posts"""
+        raise Exception("Not implemented")
+
     def generate(self, post: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
         # Implement thread generation
         thread = f"Thread from {post.get('title', 'discussion')}"

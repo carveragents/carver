@@ -61,6 +61,12 @@ class TranscriptionGenerator(BaseArtifactGenerator):
         languages = config.get('languages', ['en', 'en-GB'])
         return languages
 
+    def generate_bulk(self, posts: List[Dict[str, Any]],
+                     config: Dict[str, Any],
+                     existing_map: Dict[int, List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+        """Generate knowledge graph from multiple posts"""
+        raise Exception("Not implemented")
+
     def generate(self, post: Dict[str, Any], config: Dict[str, Any], existing: List[Dict[str, Any]]) -> Dict[str, Any]:
 
         print(f"[{self.name}] Generating for", post['content_identifier'])

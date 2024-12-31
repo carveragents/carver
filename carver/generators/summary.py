@@ -82,6 +82,12 @@ class SummaryGenerator(BaseArtifactGenerator):
 
         return ids
 
+    def generate_bulk(self, posts: List[Dict[str, Any]],
+                     config: Dict[str, Any],
+                     existing_map: Dict[int, List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+        """Generate knowledge graph from multiple posts"""
+        raise Exception("Not implemented")
+
     def generate(self, post: Dict[str, Any], config: Dict[str, Any],
                  existing: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """

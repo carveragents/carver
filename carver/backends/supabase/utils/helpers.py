@@ -93,7 +93,7 @@ def topological_sort(specs):
     visited = set()
     temp_mark = set()
     order = []
-    for node in graph:
+    for node in list(graph.keys()):
         if node not in visited:
             visit(node, visited, temp_mark, order, graph)
 

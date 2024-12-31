@@ -11,6 +11,7 @@ from tabulate import tabulate
 
 from .post_manager import PostManager
 from .artifact_manager import ArtifactManager
+from .source_manager import SourceManager
 
 from ..utils import *
 
@@ -23,6 +24,7 @@ def source(ctx):
     """Manage sources in the system."""
     ctx.obj['post_manager'] = PostManager(ctx.obj['supabase'])
     ctx.obj['artifact_manager'] = ArtifactManager(ctx.obj['supabase'])
+    ctx.obj['source_manager'] = SourceManager(ctx.obj['supabase'])
 
 @source.command()
 @click.option('--url', required=True, help='URL of the source')
@@ -450,6 +452,56 @@ def generate_bulk(ctx, source_id: int, max_retries: int, last: Optional[str],
         click.echo(f"Total artifacts generated: {total_generated}")
         if failed_specs:
             click.echo(f"Failed specifications: {failed_specs}")
+
+    except Exception as e:
+        traceback.print_exc()
+        click.echo(f"Error: {str(e)}", err=True)
+
+@source.command()
+@click.argument('source_id', type=int)
+@click.option('--batch-size', default=50, type=int,
+              help='Number of posts to process per batch')
+@click.option('--last', type=str,
+              help='Filter posts by time (e.g. "1d", "2h", "30m")')
+@click.option('--spec-id', type=int,
+              help='Specific knowledge graph specification ID to use')
+@click.pass_context
+def generate_knowledge_graph(ctx, source_id: int, batch_size: int,
+                           last: Optional[str], spec_id: Optional[int]):
+    """Generate knowledge graph from source content."""
+    source_manager = ctx.obj['source_manager']
+
+    try:
+        # Get source details
+        source = source_manager.db.source_get(source_id)
+        if not source:
+            click.echo(f"Source {source_id} not found")
+            return
+
+        click.echo(f"\nProcessing knowledge graph for source: {source['name']}")
+
+        # Parse time filter if provided
+        time_filter = parse_date_filter(last) if last else None
+
+        print("Calling generate knowledge graph")
+
+        # Generate graph
+        result = source_manager.generate_knowledge_graph(
+            source_id=source_id,
+            batch_size=batch_size,
+            last_modified=time_filter,
+            spec_id=spec_id
+        )
+
+        if result['status'] == 'success':
+            click.echo("\nKnowledge graph generated successfully!")
+            click.echo("\nStats:")
+            click.echo(f"- Nodes: {result['stats']['nodes']}")
+            click.echo(f"- Edges: {result['stats']['edges']}")
+            click.echo(f"- Documents: {result['stats']['documents']}")
+            click.echo(f"- Using specification: {result['spec_id']}")
+        else:
+            click.echo(f"\n{result['message']}")
 
     except Exception as e:
         traceback.print_exc()

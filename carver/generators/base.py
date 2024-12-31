@@ -25,6 +25,12 @@ class BaseArtifactGenerator(ABC):
         """Generate artifact content from post data"""
         pass
 
+    @abstractmethod
+    def generate_bulk(self, posts: List[Dict[str, Any]],
+                     config: Dict[str, Any],
+                     existing_map: Dict[int, List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+        """Generate knowledge graph from multiple posts"""
+
     def validate_config(self, source: Dict[str, Any],
                         config: Dict[str, Any]) -> bool:
 

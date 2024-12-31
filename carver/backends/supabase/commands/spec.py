@@ -3,7 +3,7 @@ import sys
 import json
 import traceback
 
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from pathlib import Path
 
@@ -520,7 +520,7 @@ def load_template(name: str) -> Dict:
 
     return template
 
-def update_template_dependencies(spec: Dict, dummy_to_real_map: Dict[int, int]) -> Dict:
+def update_template_dependencies(spec: Dict, dummy_to_real_map: Dict[int, int], existing_specs: List[Dict[str, Any]]) -> Dict:
     """Update specification dependencies using the mapping from dummy to real IDs"""
 
     now = datetime.utcnow().isoformat()
@@ -532,17 +532,45 @@ def update_template_dependencies(spec: Dict, dummy_to_real_map: Dict[int, int]) 
     }
 
     config = spec['config'].copy()
+
+    # Dependencies will look like this. transcription is an existing spec
+    # ['transcription', 2001]
+
     deps = config.get('dependencies', [])
-    if isinstance(deps, (int, str)):
-        deps = [int(deps)]
+    resolved_deps = []
+    unresolved_deps = []
+    if isinstance(deps, int):
+        resolved_deps = [deps]
+    elif isinstance(deps, str) and deps.isdigit():
+        resolved_deps = [int(deps)]
     elif deps is None:
-        deps = []
+        pass
     else:
-        deps = [int(d) for d in deps]
+        for d in deps:
+            if isinstance(d, int):
+                resolved_deps.append(d)
+            elif isinstance(d, str) and d.isdigit():
+                resolved_deps.append(int(d))
+            else:
+                unresolved_deps.append(d)
 
     # Update dependencies using the mapping
-    new_deps = [dummy_to_real_map[dep] for dep in deps if dep in dummy_to_real_map]
-    config['dependencies'] = new_deps
+    new_resolved_deps = [dummy_to_real_map[dep] for dep in resolved_deps if dep in dummy_to_real_map]
+
+    # Look through the existing
+    new_unresoved_deps = []
+    for d in unresolved_deps:
+        found = False
+        for s in existing_specs:
+            if s['name'] == d:
+                new_unresoved_deps.append(s['id'])
+                print(f"Matched dependency: {d} -> {s['name']}:{s['id']}")
+                found = True
+                break
+        if not found:
+            raise Exception(f"Unable to resolve dependency: {d}")
+
+    config['dependencies'] = new_resolved_deps + new_unresoved_deps
     updated_spec['config'] = config
 
     return updated_spec
@@ -569,7 +597,8 @@ def add_from_template(ctx, source_id: int, template: str, auto_approve: bool):
             return
 
         valid_platforms = template_data.get('platforms', [])
-        if source['platform'] not in valid_platforms:
+        if (("*" not in valid_platforms) and
+            (source['platform'] not in valid_platforms)):
             click.echo(f"Source platform {source['platform']} not in valid platforms for this template: {valid_platforms}")
             return
 
@@ -582,11 +611,18 @@ def add_from_template(ctx, source_id: int, template: str, auto_approve: bool):
         # Create a map of template spec ID to spec data
         spec_map = {spec['id']: spec for spec in template_data['specifications']}
 
+        print("Spec Map", json.dumps(spec_map, indent=4))
+        print("Sorted specs", sorted_spec_ids)
+
         # Track mapping from dummy IDs to real spec IDs
         dummy_to_real_map = {}
 
         # Process specifications in dependency order
         for spec_id in sorted_spec_ids:
+
+            if not isinstance(spec_id, int):
+                continue
+
             template_spec = spec_map[spec_id]
 
             # Check if similar spec exists
@@ -610,7 +646,7 @@ def add_from_template(ctx, source_id: int, template: str, auto_approve: bool):
             click.echo(f"Generator: {template_spec['config'].get('generator', 'N/A')}")
 
             # Update dependencies in config
-            new_spec_data = update_template_dependencies(template_spec, dummy_to_real_map)
+            new_spec_data = update_template_dependencies(template_spec, dummy_to_real_map, existing_specs)
             # Remove template ID and add source ID
 
             if 'id' in new_spec_data:
@@ -623,6 +659,7 @@ def add_from_template(ctx, source_id: int, template: str, auto_approve: bool):
                     click.echo(f"Created specification {new_spec['id']}")
                     dummy_to_real_map[template_spec['id']] = new_spec['id']
                 except Exception as e:
+                    traceback.print_exc()
                     click.echo(f"Error creating specification: {str(e)}", err=True)
                     if not click.confirm("Continue with remaining specifications?"):
                         return
