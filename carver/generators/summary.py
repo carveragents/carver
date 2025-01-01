@@ -158,7 +158,7 @@ of different outputs that you must generate based on the instructions
         limit = config.get('prompt_limit', 8192)
         transcript = transcript[:limit-len(system_prompt)]
 
-        should_flatten = config.get('flatten', True)
+        should_flatten = config.get('flatten', False)
 
         try:
 

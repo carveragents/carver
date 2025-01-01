@@ -277,6 +277,9 @@ def deactivate(ctx, spec_id: int, artifacts: str):
     """Deactivate multiple artifacts."""
     manager = ctx.obj['manager']
     try:
+        if artifacts is None and spec_id is None:
+            click.echo(f"Specify either spec id or list of artifacts")
+            return
 
         if artifacts is not None:
             artifacts = [int(i.strip()) for i in artifacts.split(',')]
@@ -285,3 +288,55 @@ def deactivate(ctx, spec_id: int, artifacts: str):
     except Exception as e:
         traceback.print_exc()
         click.echo(f"Error deactivating artifacts: {str(e)}", err=True)
+
+@artifact.command()
+@click.option('--id', required=True, type=int, help='Artifact ID to display')
+@click.option('--format', 'output_format',
+              type=click.Choice(['table', 'grid', 'pipe', 'orgtbl', 'rst', 'mediawiki', 'html']),
+              default='grid',
+              help='Output format for display')
+@click.pass_context
+def show(ctx, id: int, output_format: str):
+    """Show details for a specific artifact."""
+    db = ctx.obj['supabase'].client
+    try:
+
+        # Fetch single artifact with related data
+        response = db.table('carver_artifact') \
+            .select("*, carver_post(*), carver_artifact_specification(*)") \
+            .eq('id', id) \
+            .single() \
+            .execute()
+
+        if not response.data:
+            click.echo(f"No artifact found with ID {id}")
+            return
+
+        art = response.data
+
+        # Prepare data in a more viewable format
+        details = [
+            ['ID', art['id']],
+            ['Specification', art['carver_artifact_specification']['name']],
+            ['Post ID', art['post_id']],
+            ['Post Name', art['carver_post']['name']],
+            ['Post URL', art['carver_post']['url']],
+            ['Type', art['artifact_type']],
+            ['Generator', f"{art['generator_name']}:{art['generator_id']}"],
+            ['Title', art['title']],
+            ['Status', art['status']],
+            ['Version', art['version']],
+            ['Has Embedding', "Yes" if art['content_embedding'] is not None else "No"],
+            ['Active', '✓' if art['active'] else '✗'],
+            ['Created At', format_datetime(art['created_at'])],
+            ['Updated At', format_datetime(art['updated_at'])],
+            ['Content', '\n' + art['content']]  # Add newline for better formatting
+        ]
+
+        # Display results
+        click.echo(tabulate(details, tablefmt=output_format))
+
+    except Exception as e:
+        traceback.print_exc()
+        click.echo(f"Error retrieving artifact: {str(e)}", err=True)
+
