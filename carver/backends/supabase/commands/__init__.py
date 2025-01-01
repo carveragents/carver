@@ -3,3 +3,4 @@ from .source import *
 from .post import *
 from .artifact import *
 from .spec import *
+from .templates import *

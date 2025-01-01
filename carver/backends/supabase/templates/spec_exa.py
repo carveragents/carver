@@ -46,11 +46,11 @@ to the final conclusion.
 
 """
 
-def get_config():
+def get_config(raw: bool = False):
     return {
-        "name": "YouTube",
-        "description": "YouTube transcription and processing",
-        "platforms": ['youtube', 'YOUTUBE'],
+        "name": "Exa",
+        "description": "Exa Search Results",
+        "platforms": ['Exa', "EXA"],
         "specifications": [
             {
                 "id": 1001,

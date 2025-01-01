@@ -11,7 +11,7 @@ import click
 
 from tabulate import tabulate
 
-from ..utils.helpers import topological_sort
+from ..utils.helpers import topological_sort, load_template
 from ..utils import get_spec_config
 from carver.utils import format_datetime, parse_date_filter
 from .artifact_manager import ArtifactManager
@@ -487,28 +487,9 @@ def sync_specs(ctx, reference_source: int, target_source: int, auto_approve: boo
         click.echo(f"Error during sync: {str(e)}", err=True)
         raise
 
-def load_template(name: str) -> Dict:
-    """Load and validate the template file"""
+def load_and_validate(name: str) -> Dict:
 
-    templatedir = os.path.join(thisdir, 'templates')
-    alternatives = [
-        name,
-        os.path.join(templatedir, name),
-        os.path.join(templatedir, name + ".py"),
-        os.path.join(templatedir, name + ".json")
-    ]
-
-    template_path = None
-    for path in alternatives:
-        if os.path.exists(path):
-            template_path = path
-            break
-
-    if template_path is None:
-        raise ValueError(f"Template missing required fields: {name}")
-
-    # Could be json or py
-    template = get_spec_config(template_path)
+    template = load_template("spec", name)
 
     required_fields = {'name', 'description', 'specifications'}
     if not all(field in template for field in required_fields):
@@ -588,7 +569,7 @@ def add_from_template(ctx, source_id: int, template: str, auto_approve: bool):
 
     try:
         # Load and validate template
-        template_data = load_template(template)
+        template_data = load_and_validate(template)
         click.echo(f"\nLoaded template: {template_data['name']}")
 
         # Get source details
@@ -676,108 +657,6 @@ def add_from_template(ctx, source_id: int, template: str, auto_approve: bool):
     except Exception as e:
         click.echo(f"Error processing template: {str(e)}", err=True)
         raise
-
-def format_dependency_tree(specs: list, indent: str = "") -> list:
-    """Format specifications as a dependency tree"""
-    spec_map = {spec['id']: spec for spec in specs}
-    formatted = []
-
-    def format_spec(spec, indent):
-        deps = spec['config'].get('dependencies', [])
-        if isinstance(deps, (int, str)):
-            deps = [int(deps)]
-        elif deps is None:
-            deps = []
-
-        lines = [
-            f"{indent}├── Name: {spec['name']}",
-            f"{indent}│   ID: {spec['id']}",
-            f"{indent}│   Generator: {spec['config'].get('generator', 'N/A')}",
-            f"{indent}│   Dependencies: {deps if deps else 'None'}"
-        ]
-        return lines
-
-    # Start with specs that have no dependencies
-    processed = set()
-    def process_spec(spec_id, current_indent):
-        if spec_id in processed:
-            return []
-
-        spec = spec_map[spec_id]
-        formatted.extend(format_spec(spec, current_indent))
-        processed.add(spec_id)
-
-        # See whose parent is this spec_id
-        deps = []
-        for spec in specs:
-            if spec['id'] in processed:
-                continue
-            if spec_id in spec['config'].get('dependencies', []):
-                deps.append(spec['id'])
-
-        for dep in deps:
-            if dep in spec_map:
-                formatted.append(f"{current_indent}│")
-                process_spec(dep, current_indent + "    ")
-            else:
-                print(f"{dep} not in spec_map")
-
-    # Find root specs (those with no dependencies)
-    root_specs = [spec for spec in specs if not spec['config'].get('dependencies')]
-    for spec in root_specs:
-        process_spec(spec['id'], "")
-        formatted.append("")
-
-    return formatted
-
-@spec.command('list-templates')
-@click.option('--show-content', is_flag=True, help='Show detailed template contents')
-@click.pass_context
-def list_templates(ctx, show_content):
-    """List available specification templates."""
-    # Get templates directory
-    templates_dir = Path(__file__).parent / "templates"
-
-    print(templates_dir)
-    if not templates_dir.exists():
-        click.echo("Templates directory not found")
-        return
-
-    # Find template files
-    template_files = list(templates_dir.glob("*.json"))
-    template_files.extend(templates_dir.glob("*.py"))
-
-    if not template_files:
-        click.echo("No template files found")
-        return
-
-    # Display template information
-    for file_path in template_files:
-        click.echo("\n" + "=" * 50)
-        click.echo(f"Template: {file_path.name}")
-        click.echo("=" * 50)
-
-        try:
-            template = get_spec_config(str(file_path))
-            click.echo(f"Name: {template.get('name', 'Unnamed')}")
-            click.echo(f"Description: {template.get('description', 'No description')}")
-            click.echo(f"\nSpecifications: {len(template['specifications'])}")
-
-            click.echo("\nDependency Tree:")
-            tree = format_dependency_tree(template['specifications'])
-            click.echo("\n".join(tree))
-
-            if show_content:
-                click.echo("\nDetailed Configuration:")
-                click.echo(json.dumps(template, indent=2))
-
-        except Exception as e:
-            traceback.print_exc()
-            click.echo(f"Error loading template: {str(e)}", err=True)
-            continue
-
-        click.echo("\n")
-
 
 @spec.command()
 @click.argument('spec_id', type=int)

@@ -11,11 +11,15 @@ from supabase import create_client, Client
 
 from carver.utils import get_config, parse_date_filter, chunks, format_datetime
 
+thisdir = os.path.dirname(__file__)
+
 __all__ = [
     'get_supabase_client',
     'topological_sort',
     'hyperlink',
-    'get_spec_config'
+    'get_spec_config',
+    'load_template',
+    'format_dependency_tree'
 ]
 
 def get_supabase_client() -> Client:
@@ -80,7 +84,7 @@ def hyperlink(uri, label=None):
     return escape_mask.format(parameters, uri, label)
 
 
-def get_spec_config(path: str) -> Any:
+def get_spec_config(path: str, raw=True) -> Any:
     """
     Load a Python/json file and return config
 
@@ -118,4 +122,103 @@ def get_spec_config(path: str) -> Any:
     # Execute the module
     spec.loader.exec_module(module)
 
-    return module.get_config()
+    return module.get_config(raw=raw)
+
+def load_template(name: str, prefix: str = "", raw: bool = False) -> Dict:
+    """Load and validate the template file"""
+
+    parentdirs = [
+        os.path.join(thisdir, "..", 'templates'),
+        "."
+    ]
+
+    alternatives = []
+
+    for parentdir in parentdirs:
+        alternatives.extend([
+            name,
+            os.path.join(parentdir, f"{name}"),
+            os.path.join(parentdir, f"{name}.py"),
+            os.path.join(parentdir, f"{name}.json"),
+        ])
+
+        if prefix is not None:
+            alternatives.extend([
+                os.path.join(parentdir, f"{prefix}_{name}"),
+                os.path.join(parentdir, f"{prefix}_{name}.py"),
+                os.path.join(parentdir, f"{prefix}_{name}.json"),
+            ])
+
+    template_path = None
+    for path in alternatives:
+        if os.path.exists(path):
+            template_path = path
+            break
+
+    if template_path is None:
+        raise ValueError(f"Template missing required fields: {name}")
+
+    # Could be json or py
+    template = get_spec_config(template_path, raw=raw)
+
+    return template
+
+def format_dependency_tree(specs: list, indent: str = "") -> list:
+    """Format specifications as a dependency tree"""
+    spec_map = {spec['id']: spec for spec in specs}
+    formatted = []
+
+    def format_spec(spec, indent):
+        deps = spec['config'].get('dependencies', [])
+        if isinstance(deps, (int, str)):
+            deps = [int(deps)]
+        elif deps is None:
+            deps = []
+
+        lines = [
+            f"{indent}├── Name: {spec['name']}",
+            f"{indent}│   ID: {spec['id']}",
+            f"{indent}│   Generator: {spec['config'].get('generator', 'N/A')}",
+            f"{indent}│   Dependencies: {deps if deps else 'None'}"
+        ]
+        return lines
+
+    # Start with specs that have no dependencies
+    processed = set()
+    def process_spec(spec_id, current_indent):
+        if spec_id in processed:
+            return []
+
+        spec = spec_map[spec_id]
+        formatted.extend(format_spec(spec, current_indent))
+        processed.add(spec_id)
+
+        # See whose parent is this spec_id
+        deps = []
+        for spec in specs:
+            if spec['id'] in processed:
+                continue
+            if spec_id in spec['config'].get('dependencies', []):
+                deps.append(spec['id'])
+
+        for dep in deps:
+            if dep in spec_map:
+                formatted.append(f"{current_indent}│")
+                process_spec(dep, current_indent + "    ")
+            else:
+                print(f"{dep} not in spec_map")
+
+    # Find root specs (those with no dependencies)
+    root_specs = []
+    for spec in specs:
+        dependencies = spec['config'].get('dependencies', [])
+        dependencies = [d for d in dependencies if isinstance(d, int)]
+        if len(dependencies) == 0:
+            root_specs.append(spec)
+
+    for spec in root_specs:
+        process_spec(spec['id'], "")
+        formatted.append("")
+
+    return formatted
+
