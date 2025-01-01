@@ -21,18 +21,19 @@ class BaseArtifactGenerator(ABC):
         }
 
     @abstractmethod
-    def generate(self, post: Dict[str, Any], config: Dict[str, Any], existing: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def generate(self, post: Dict[str, Any], spec: Dict[str, Any], existing: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Generate artifact content from post data"""
         pass
 
     @abstractmethod
     def generate_bulk(self, posts: List[Dict[str, Any]],
-                     config: Dict[str, Any],
+                     spec: Dict[str, Any],
                      existing_map: Dict[int, List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
         """Generate knowledge graph from multiple posts"""
+        pas
 
     def validate_config(self, source: Dict[str, Any],
-                        config: Dict[str, Any]) -> bool:
+                        spec: Dict[str, Any]) -> bool:
 
         if (("*" not in self.supported_platforms) and
             (source['platform'].upper() not in [x.upper() for x in self.supported_platforms])):
@@ -42,6 +43,7 @@ class BaseArtifactGenerator(ABC):
             (source['source_type'].upper() not in [x.upper() for x in self.supported_source_types])):
             raise ValueError(f"Unsupported source type: {source['source_type']}")
 
+        config = spec['config']
         return all(k in config for k in self.required_config)
 
     def get_ids(self, config: Dict[str, Any]):

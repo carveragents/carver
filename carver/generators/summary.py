@@ -22,7 +22,8 @@ class SummaryGenerator(BaseArtifactGenerator):
     supported_source_types = ["*"]
     required_config = ['prompts']
 
-    def validate_config(self, source: Dict[str, Any], config: Dict[str, Any]) -> bool:
+    def validate_config(self, source: Dict[str, Any],
+                        spec: Dict[str, Any]) -> bool:
         """
         Validate configuration parameters for summary generation.
 
@@ -45,6 +46,9 @@ class SummaryGenerator(BaseArtifactGenerator):
         Raises:
             ValueError: If configuration is invalid
         """
+
+        config = spec['config']
+
         # Check basic config requirements
         if not all(k in config for k in self.required_config):
             raise ValueError(f"Missing required config fields: {self.required_config}")
@@ -83,25 +87,27 @@ class SummaryGenerator(BaseArtifactGenerator):
         return ids
 
     def generate_bulk(self, posts: List[Dict[str, Any]],
-                     config: Dict[str, Any],
-                     existing_map: Dict[int, List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+                      spec: Dict[str, Any],
+                      existing_map: Dict[int, List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
         """Generate knowledge graph from multiple posts"""
         raise Exception("Not implemented")
 
-    def generate(self, post: Dict[str, Any], config: Dict[str, Any],
+    def generate(self, post: Dict[str, Any],
+                 spec: Dict[str, Any],
                  existing: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Generate summaries based on multiple prompts and configurations.
 
         Args:
             post: Dictionary containing content to summarize
-            config: Dictionary containing summarization parameters including multiple prompts
+            spec: Dictionary containing summarization parameters including multiple prompts
             existing: List of existing artifacts
 
         Returns:
             List of generated summary artifacts
         """
 
+        config = spec['config']
         title = post['title']
 
         # => First get the transcript

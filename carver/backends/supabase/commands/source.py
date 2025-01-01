@@ -14,9 +14,10 @@ from .artifact_manager import ArtifactManager
 from .source_manager import SourceManager
 
 from ..utils import *
+from carver.utils import *
 
-PLATFORM_CHOICES = ['TWITTER', 'GITHUB', 'YOUTUBE', 'RSS', 'WEB', 'SUBSTACK']
-SOURCE_TYPE_CHOICES = ['FEED', 'PROFILE', 'CHANNEL', 'REPOSITORY', 'PAGE', "NEWSLETTER"]
+PLATFORM_CHOICES = ['TWITTER', 'GITHUB', 'YOUTUBE', 'RSS', 'WEB', 'SUBSTACK', "EXA"]
+SOURCE_TYPE_CHOICES = ['FEED', 'PROFILE', 'CHANNEL', 'REPOSITORY', 'PAGE', "NEWSLETTER", "SEARCH"]
 
 @click.group()
 @click.pass_context
@@ -302,6 +303,7 @@ def sync_posts(ctx, source_id: int, fields: Optional[str], max_results: Optional
             click.echo(f"- Added: {added}")
             click.echo(f"- Updated: {updated}")
         except Exception as e:
+            traceback.print_exc()
             click.echo(f"Error syncing posts: {str(e)}", err=True)
 
     except Exception as e:

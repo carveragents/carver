@@ -82,8 +82,12 @@ class PostManager:
                 d1 = dateparser.parse(post['published_at'])
                 d2 = dateparser.parse(existing_map[content_id]['published_at'])
                 change = ((post['title'] != existing_map[content_id]['title']) or
-                          (post['description'] != existing_map[content_id]['description']) or
+                          #(post['description'] != existing_map[content_id]['description']) or
                           (d1 != d2))
+                print(post['title'],
+                       existing_map[content_id]['title'],
+                       (post['title'] != existing_map[content_id]['title']))
+                print(d1, d2, (d1 != d2))
                 if change:
                     post['id'] = existing_map[content_id]['id']
                     to_update.append(post)

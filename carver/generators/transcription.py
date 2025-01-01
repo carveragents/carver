@@ -14,7 +14,7 @@ class TranscriptionGenerator(BaseArtifactGenerator):
     """Generates transcription artifacts from audio/video"""
     name = "transcription"
     description = "Extracts and processes transcriptions from audio/video content"
-    supported_platforms = ['YOUTUBE', 'PODCAST']
+    supported_platforms = ['YOUTUBE', 'EXA']
     supported_source_types = ['FEED', 'PLAYLIST', 'CHANNEL', "SEARCH"]
     required_config = ['languages']
 
@@ -67,7 +67,7 @@ class TranscriptionGenerator(BaseArtifactGenerator):
         """Generate knowledge graph from multiple posts"""
         raise Exception("Not implemented")
 
-    def generate(self, post: Dict[str, Any], config: Dict[str, Any], existing: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def generate_youtube(self, post: Dict[str, Any], config: Dict[str, Any], existing: List[Dict[str, Any]]) -> Dict[str, Any]:
 
         print(f"[{self.name}] Generating for", post['content_identifier'])
         videoid = post['content_identifier']
@@ -80,6 +80,7 @@ class TranscriptionGenerator(BaseArtifactGenerator):
             if ((e.get('generator_name', None) == self.name) and
                 (lang is not None)):
                 existing_languages.append(lang)
+
 
         missing_languages = [l for l in languages if l not in existing_languages]
 
@@ -101,3 +102,36 @@ class TranscriptionGenerator(BaseArtifactGenerator):
 
         return artifacts
 
+    def generate_exa(self, post: Dict[str, Any], config: Dict[str, Any], existing: List[Dict[str, Any]]) -> Dict[str, Any]:
+
+        transcripts= [{
+            "generator_name": "transcription",
+            "generator_id": "en",
+            "title": post['title'],
+            "description": post['description'],
+            "content": post['content'],
+            "language": "en",
+            "format": "text",
+            "status": "draft",
+            "artifact_type": "TRANSCRIPTION",
+            "analysis_metadata": {
+                "length": len(post['content'])
+            }
+        }]
+
+        return transcripts
+
+
+    def generate(self, post: Dict[str, Any],
+                 spec: Dict[str, Any],
+                 existing: List[Dict[str, Any]]) -> Dict[str, Any]:
+
+        source = spec['carver_source']
+        config = spec['config']
+
+        if source['platform'].upper() in ['YOUTUBE']:
+            return self.generate_youtube(post, config, existing)
+        elif source['platform'].upper() in ['EXA']:
+            return self.generate_exa(post, config, existing)
+        else:
+            raise Exception(f"Unknown platform: {source['platform']}")

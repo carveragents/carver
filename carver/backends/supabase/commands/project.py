@@ -12,6 +12,7 @@ import click
 from tabulate import tabulate
 
 from carver.feeds.youtube import YouTubePlaylistDiscovery
+from carver.utils import *
 
 from .post_manager import PostManager
 from .artifact_manager import ArtifactManager

@@ -2,13 +2,19 @@ import os
 import sys
 import json
 
+from typing import List, Dict, Any, Optional
 from pathlib import Path
+from datetime import datetime, timedelta
 
 from decouple import Config, RepositoryIni
+from dateutil import parser
 
 __all__ = [
     'get_config',
-    'flatten'
+    'flatten',
+    'parse_date_filter',
+    'chunks',
+    'format_datetime',
 ]
 
 # Configuration file locations to search
@@ -84,3 +90,32 @@ class SafeEncoder(json.JSONEncoder):
             result = str(obj)
 
         return result
+
+def format_datetime(dt_str: str) -> str:
+    """Format datetime string for display"""
+    dt = parser.parse(dt_str)
+    return dt.strftime('%Y-%m-%d %H:%M')
+
+def parse_date_filter(date_str: str) -> datetime:
+    """Parse date filter string into datetime object"""
+    if date_str.endswith('h'):
+        hours = int(date_str[:-1])
+        return datetime.utcnow().replace(minute=0, second=0, microsecond=0) - timedelta(hours=hours)
+    elif date_str.endswith('d'):
+        days = int(date_str[:-1])
+        return datetime.utcnow().replace(minute=0, second=0, microsecond=0) - timedelta(days=days)
+    elif date_str.endswith('w'):
+        weeks = int(date_str[:-1])
+        return datetime.utcnow().replace(minute=0, second=0, microsecond=0) - timedelta(weeks=weeks)
+    elif date_str.endswith('m'):
+        months = int(date_str[:-1])
+        return datetime.utcnow().replace(minute=0, second=0, microsecond=0) - timedelta(weeks=months*4)
+    else:
+        return parser.parse(date_str)
+
+def chunks(lst: List[Any], n: int) -> List[List[Any]]:
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
+
+

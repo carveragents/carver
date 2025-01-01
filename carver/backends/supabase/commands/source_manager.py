@@ -5,7 +5,7 @@ from datetime import datetime
 
 from carver.generators import ArtifactGeneratorFactory
 
-from ..utils import parse_date_filter
+from carver.utils import parse_date_filter
 
 logger = logging.getLogger(__name__)
 

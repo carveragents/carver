@@ -8,15 +8,11 @@ from datetime import datetime, timedelta
 import importlib.util
 
 from supabase import create_client, Client
-from dateutil import parser
 
-from carver.utils import get_config
+from carver.utils import get_config, parse_date_filter, chunks, format_datetime
 
 __all__ = [
     'get_supabase_client',
-    'format_datetime',
-    'parse_date_filter',
-    'chunks',
     'topological_sort',
     'hyperlink',
     'get_spec_config'
@@ -30,33 +26,6 @@ def get_supabase_client() -> Client:
     supabase_key = config('SUPABASE_KEY')
 
     return create_client(supabase_url, supabase_key)
-
-def format_datetime(dt_str: str) -> str:
-    """Format datetime string for display"""
-    dt = parser.parse(dt_str)
-    return dt.strftime('%Y-%m-%d %H:%M')
-
-def parse_date_filter(date_str: str) -> datetime:
-    """Parse date filter string into datetime object"""
-    if date_str.endswith('h'):
-        hours = int(date_str[:-1])
-        return datetime.utcnow().replace(minute=0, second=0, microsecond=0) - timedelta(hours=hours)
-    elif date_str.endswith('d'):
-        days = int(date_str[:-1])
-        return datetime.utcnow().replace(minute=0, second=0, microsecond=0) - timedelta(days=days)
-    elif date_str.endswith('w'):
-        weeks = int(date_str[:-1])
-        return datetime.utcnow().replace(minute=0, second=0, microsecond=0) - timedelta(weeks=weeks)
-    elif date_str.endswith('m'):
-        months = int(date_str[:-1])
-        return datetime.utcnow().replace(minute=0, second=0, microsecond=0) - timedelta(weeks=months*4)
-    else:
-        return parser.parse(date_str)
-
-def chunks(lst: List[Any], n: int) -> List[List[Any]]:
-    """Yield successive n-sized chunks from lst."""
-    for i in range(0, len(lst), n):
-        yield lst[i:i + n]
 
 def build_dependency_graph(specs):
     """Build a graph of specification dependencies."""

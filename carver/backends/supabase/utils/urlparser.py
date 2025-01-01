@@ -38,6 +38,10 @@ class SourceURLParser:
         'post': r'(?:https?:\/\/)?([a-zA-Z0-9-]+)\.substack\.com\/p\/([a-zA-Z0-9-]+)'
     }
 
+    EXA_PATTERNS = {
+        'search': r'(?:https?:\/\/)?([a-zA-Z0-9-]+)\.exa\.ai\/?$',
+    }
+
     @classmethod
     def parse_url(cls, url: str) -> Optional[Dict]:
         """
@@ -58,7 +62,8 @@ class SourceURLParser:
                 cls._parse_substack,
                 cls._parse_reddit,
                 cls._parse_podcast,
-                cls._parse_rss
+                cls._parse_rss,
+                cls._parse_exa
             ]
 
             for parser in parsers:
@@ -454,6 +459,23 @@ class SourceURLParser:
         feed_namespaces = getattr(feed, 'namespaces', {}).values()
         return any(ns in feed_namespaces for ns in podcast_namespaces)
 
+    @classmethod
+    def _parse_exa(cls, url: str, parsed_url: urlparse) -> Optional[Dict]:
+        """Parse Substack URLs with metadata"""
+        if 'exa.ai' not in parsed_url.netloc:
+            return None
+
+        return {
+            'platform': 'EXA',
+            'source_type': 'SEARCH',
+            "name": "Exa Search",
+            "description": "Exa Search",
+            "source_identifier": "",
+            'url': url,
+            'config': {
+                "query": "to be filled"
+            }
+        }
     @classmethod
     def _parse_substack(cls, url: str, parsed_url: urlparse) -> Optional[Dict]:
         """Parse Substack URLs with metadata"""

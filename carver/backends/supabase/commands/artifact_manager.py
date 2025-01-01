@@ -28,13 +28,16 @@ class ArtifactManager:
                              data: Dict[str, Any]) -> Dict[str, Any]:
         """Create a new artifact specification"""
 
+        print(json.dumps(data, indent=4))
+
         generator = data.get('config', {}).get('generator')
         if not generator:
             raise ValueError("Generator name not specified in config")
 
+
         # Validate config for the generator
         generatorobj = ArtifactGeneratorFactory.get_generator(generator)
-        if not generatorobj.validate_config(source, data['config']):
+        if not generatorobj.validate_config(source, data):
             raise ValueError(f"Invalid configuration for {generator} generator")
 
         create_data = {
@@ -55,9 +58,8 @@ class ArtifactManager:
 
         # If config is being updated, validate it
         if 'config' in data:
-            config = data['config']
             generator = ArtifactGeneratorFactory.get_generator(config['generator'])
-            if not generator.validate_config(source, data['config']):
+            if not generator.validate_config(source, data):
                 raise ValueError(f"Invalid configuration for {artifact_type} generator")
 
         return self.db.specification_update(spec_id, data)
@@ -112,7 +114,7 @@ class ArtifactManager:
                 existing_artifacts = post['artifacts']
                 post_id = post['id']
                 artifacts_data = generator.generate(post,
-                                                    spec['config'],
+                                                    spec,
                                                     existing_artifacts)
 
                 if isinstance(artifacts_data, dict):
@@ -186,7 +188,7 @@ class ArtifactManager:
                         newartifacts = False
 
             except Exception as e:
-                #traceback.print_exc()
+                traceback.print_exc()
                 errors.append(f"Error processing post {post_id}: {str(e)}"[:100])
 
         if newartifacts:
@@ -214,9 +216,8 @@ class ArtifactManager:
             raise ValueError("Associated specification or post not found")
 
         # Get generator and regenerate
-        config = spec['config']
         generator = ArtifactGeneratorFactory.get_generator(config['generator'])
-        artifact_data = generator.generate(post, spec['config'])
+        artifact_data = generator.generate(post, spec)
 
         # Update artifact
         update_data = {

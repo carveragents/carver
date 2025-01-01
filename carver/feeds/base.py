@@ -39,6 +39,7 @@ class FeedReader(ABC):
             'acquired_at': now,
             'updated_at': now,
             'is_processed': False,
+            "language": "en",
             'analysis_metadata': {},
             'content_metrics': {}
             # Language will be set by specific readers based on content
@@ -53,6 +54,7 @@ class FeedReader(ABC):
         from .podcast import PodcastReader
         from .rss import RSSReader
         from .substack import SubstackReader
+        from .exasearch import ExaSearchReader
 
         platform = source.get('platform', '').upper()
         source_type = source.get('source_type', '').upper()
@@ -68,6 +70,7 @@ class FeedReader(ABC):
             ('RSS', 'PODCAST'): PodcastReader,
             ('SUBSTACK', 'FEED'): SubstackReader,
             ('SUBSTACK', 'NEWSLETTER'): SubstackReader,
+            ('EXA', 'SEARCH'): ExaSearchReader
         }
 
         reader_class = reader_map.get((platform, source_type))

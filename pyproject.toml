@@ -45,7 +45,8 @@ dependencies = [
    "bs4",
    "substack-api",
    "lxml_html_clean",
-   "newspaper4k"
+   "newspaper4k",
+   "exa-py"
 ]
 
 [project.urls]

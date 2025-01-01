@@ -26,8 +26,11 @@ class KnowledgeGraphGenerator(BaseArtifactGenerator):
     supported_platforms = ["*"]
     supported_source_types = ["*"]
 
-    def validate_config(self, source: Dict[str, Any], config: Dict[str, Any]) -> bool:
+    def validate_config(self, source: Dict[str, Any],
+                        spec: Dict[str, Any]) -> bool:
         """Validate configuration parameters"""
+
+        config = spec['config']
         required_fields = ['max_triplets_per_chunk', 'system_prompt']
         if not all(field in config for field in required_fields):
             raise ValueError(f"Missing required config fields: {required_fields}")
@@ -39,7 +42,7 @@ class KnowledgeGraphGenerator(BaseArtifactGenerator):
 
     def get_ids(self, config: Dict[str, Any]) -> List[str]:
         """Get list of generator IDs"""
-        return ['en-knowledge-graph']
+        return ['en']
 
     def _get_transcript(self, post: Dict[str, Any], artifacts: List[Dict[str, Any]]) -> Optional[str]:
         """Extract transcript from post artifacts"""
@@ -63,17 +66,21 @@ class KnowledgeGraphGenerator(BaseArtifactGenerator):
             }
         )
 
-    def generate(self, post: Dict[str, Any], config: Dict[str, Any], existing: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def generate(self, post: Dict[str, Any],
+                 spec: Dict[str, Any],
+                 existing: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Generate artifact content from post data"""
         raise Exception("Not implemented")
 
     def generate_bulk(self, posts: List[Dict[str, Any]],
-                     config: Dict[str, Any],
+                     spec: Dict[str, Any],
                      existing_map: Dict[int, List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
         """Generate knowledge graph from multiple posts"""
 
         llmconfig = get_config()
         os.environ['OPENAI_API_KEY'] = llmconfig('OPENAI_API_KEY')
+
+        config = spec['config']
 
         try:
             # Setup graph store and context

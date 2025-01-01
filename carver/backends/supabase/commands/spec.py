@@ -12,7 +12,8 @@ import click
 from tabulate import tabulate
 
 from ..utils.helpers import topological_sort
-from ..utils import format_datetime, parse_date_filter, get_spec_config
+from ..utils import get_spec_config
+from carver.utils import format_datetime, parse_date_filter
 from .artifact_manager import ArtifactManager
 
 thisdir = os.path.dirname(__file__)
@@ -603,7 +604,10 @@ def add_from_template(ctx, source_id: int, template: str, auto_approve: bool):
             return
 
         # Get existing source specifications
-        existing_specs = db.specification_search(source_id=source_id)
+        existing_specs = db.specification_search(source_id=source_id,
+                                                 active=True)
+
+        print([[s['id'], s['active']] for s in existing_specs])
 
         # Get sorted specification IDs from template
         sorted_spec_ids = topological_sort(template_data['specifications'])
