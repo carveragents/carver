@@ -14,8 +14,8 @@ class TranscriptionGenerator(BaseArtifactGenerator):
     """Generates transcription artifacts from audio/video"""
     name = "transcription"
     description = "Extracts and processes transcriptions from audio/video content"
-    supported_platforms = ['YOUTUBE', 'EXA']
-    supported_source_types = ['FEED', 'PLAYLIST', 'CHANNEL', "SEARCH"]
+    supported_platforms = ['YOUTUBE']
+    supported_source_types = ['FEED', 'PLAYLIST', 'CHANNEL']
     required_config = ['languages']
 
     def get_transcripts(self, youtube_id, languages=['en', 'en-GB']) -> Dict[str, Any]:

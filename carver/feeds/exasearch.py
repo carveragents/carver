@@ -40,10 +40,7 @@ class ExaReader(FeedReader):
         base_item.update({
             'content_type': 'ARTICLE',
             'title': raw_item.title,
-            'description': raw_item.summary,
-            'summary': raw_item.summary,
             'author': raw_item.author,
-            'content': raw_item.text,
             'url': raw_item.url,
             'published_at': raw_item.published_date,
             # 'thumbnail_url': raw_item.get('image', None),
@@ -51,7 +48,6 @@ class ExaReader(FeedReader):
             #'language': raw_item.get('language', 'en'),
             "language": "en",
             'content_metrics': {
-                'text_length': len(raw_item.text),
                 'score': raw_item.score,
             }
         })
@@ -78,18 +74,23 @@ class ExaSearchReader(ExaReader):
         end_date = datetime.now(timezone.utc)
 
         # Calculate max results (default to 50 if not specified)
-        max_results = min(self.max_results or 25, 25)
+        max_results = self.source['config'].get('num_results', 25)
+        if self.max_results and max_results != self.max_results:
+            print(f"Overriding default num_results ({max_results}) with {self.max_results}")
+            max_results = self.max_results
+
+        extra = {}
+        if 'category' in self.source['config']:
+            extra['category'] = self.source['config']['category']
 
         try:
-            response = self.exa.search_and_contents(
+            response = self.exa.search(
                 query,
                 type="neural",  # Use neural search as specified
                 start_published_date=start_date.isoformat(),
                 end_published_date=end_date.isoformat(),
-                text=True,
-                summary=True,
                 num_results=max_results,
-                livecrawl="always"
+                **extra
             )
 
             # Process and return results

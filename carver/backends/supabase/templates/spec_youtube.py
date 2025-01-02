@@ -46,10 +46,10 @@ to the final conclusion.
 
 """
 
-def get_config(raw: bool = False):
+def get_config(raw: bool = False, show: bool = False):
 
     return {
-        "name": "YouTube",
+        "name": "YouTube Playlists",
         "description": "YouTube transcription and processing",
         "platforms": ['youtube', 'YOUTUBE'],
         "specifications": [

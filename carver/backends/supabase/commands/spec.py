@@ -489,7 +489,7 @@ def sync_specs(ctx, reference_source: int, target_source: int, auto_approve: boo
 
 def load_and_validate(name: str) -> Dict:
 
-    template = load_template("spec", name)
+    template = load_template(model="spec", name=name)
 
     required_fields = {'name', 'description', 'specifications'}
     if not all(field in template for field in required_fields):
@@ -742,6 +742,7 @@ def generate_bulk(ctx, spec_id: int, max_retries: int, last: Optional[str],
                 success = True
                 click.echo(f"{label} Generated {len(results)} artifacts")
             except Exception as e:
+                traceback.print_exc()
                 retry_count += 1
                 if retry_count < max_retries:
                     click.echo(f"{label} Retry {retry_count}/{max_retries}")

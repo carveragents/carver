@@ -38,7 +38,7 @@ class PostManager:
             source_id=source_id,
             limit=10000,
             active=True,
-            fields=fields or ['id', 'content_identifier', 'updated_at', 'title', 'description', 'content', 'published_at']
+            fields=fields or ['id', 'content_identifier', 'updated_at', 'title', 'description', 'published_at']
         )
 
         # Create lookup of existing posts
@@ -74,7 +74,6 @@ class PostManager:
 
             # Ensure that there are no duplicates
             if content_id in seen:
-                print("Seen", content_id)
                 continue
             seen[content_id] = 1
 
@@ -84,10 +83,10 @@ class PostManager:
                 change = ((post['title'] != existing_map[content_id]['title']) or
                           #(post['description'] != existing_map[content_id]['description']) or
                           (d1 != d2))
-                print(post['title'],
-                       existing_map[content_id]['title'],
-                       (post['title'] != existing_map[content_id]['title']))
-                print(d1, d2, (d1 != d2))
+                #print(post['title'],
+                #       existing_map[content_id]['title'],
+                #       (post['title'] != existing_map[content_id]['title']))
+                # print(d1, d2, (d1 != d2))
                 if change:
                     post['id'] = existing_map[content_id]['id']
                     to_update.append(post)

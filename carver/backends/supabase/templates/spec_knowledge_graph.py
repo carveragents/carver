@@ -20,7 +20,7 @@ For each relationship:
 Return the structured data in the exact format shown in the knowledge graph visualization.
 """
 
-def get_config(raw: bool = False):
+def get_config(raw: bool = False, show: bool = False):
 
     return {
         "name": "Knowledge Graph Generator",

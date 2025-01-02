@@ -87,6 +87,59 @@ def add(ctx, url: str, project_id: int, name: Optional[str],
         traceback.print_exc()
         click.echo(f"Error: {str(e)}", err=True)
 
+@source.command('add-with-template')
+@click.argument('project_id', type=int)
+@click.argument('template_name')
+@click.option('--name', help='Override the automatically inferred name')
+@click.option('--description', help='Description of the source')
+@click.pass_context
+def add_with_template(ctx, project_id: int, template_name: str,
+                     name: Optional[str], description: Optional[str]):
+    """Add a new source using a template."""
+    db = ctx.obj['supabase']
+
+    try:
+
+        # Load template
+        template = load_template(model="source", name=template_name)
+
+        source = template['specifications'][0]
+        source.pop('id',None)
+
+        # Allow override of inferred name
+        if name:
+            source['name'] = name
+
+        # Add description if provided
+        if description:
+            source['description'] = description
+
+        # Add required fields
+        now = datetime.utcnow()
+        source.update({
+            'active': True,
+            'project_id': project_id,
+            'analysis_metadata': {},
+            'created_at': now.isoformat(),
+            'updated_at': now.isoformat()
+        })
+
+        # Create the source
+        source = db.source_create(source)
+
+        if source:
+            click.echo(f"Successfully created source: {source['name']} (ID: {source['id']})")
+            click.echo("\nSource details:")
+            click.echo(f"Platform: {source['platform']}")
+            click.echo(f"Type: {source['source_type']}")
+            click.echo(f"Template: {template_name}")
+        else:
+            click.echo("Error creating source", err=True)
+
+    except Exception as e:
+        traceback.print_exc()
+        click.echo(f"Error: {str(e)}", err=True)
+
 @source.command()
 @click.argument('source_id', type=int)
 @click.option('--activate', is_flag=True, help='Activate the source')
@@ -508,3 +561,5 @@ def generate_knowledge_graph(ctx, source_id: int, batch_size: int,
     except Exception as e:
         traceback.print_exc()
         click.echo(f"Error: {str(e)}", err=True)
+
+

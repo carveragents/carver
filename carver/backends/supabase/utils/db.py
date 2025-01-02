@@ -117,7 +117,7 @@ class SupabaseClient:
     def source_get(self, source_id: int) -> Dict[str, Any]:
         """Get a single source by ID"""
         result = self.client.table('carver_source') \
-            .select('*, carver_project(*)') \
+            .select('*, carver_project!inner(*)') \
             .eq('id', source_id) \
             .execute()
         return result.data[0] if result.data else None
@@ -140,7 +140,7 @@ class SupabaseClient:
                 field_list.append('carver_project(id, name)')
             select_statement = ', '.join(field_list)
         else:
-            select_statement = '*, carver_project(*)'
+            select_statement = '*, carver_project!inner(*)'
 
         query = self.client.table('carver_source').select(select_statement)
 
@@ -240,7 +240,7 @@ class SupabaseClient:
         """Get a single item by ID with its source information"""
         try:
             result = self.client.table('carver_post') \
-                .select('*, carver_source(*)') \
+                .select('*, carver_source!inner(*)') \
                 .eq('id', post_id) \
                 .execute()
             return result.data[0] if result.data else None
@@ -502,9 +502,10 @@ class SupabaseClient:
 
             post_ids = [i['id'] for i in posts]
             basequery = self.client.table('carver_artifact') \
-                                   .select('*') \
+                                   .select('*, spec:carver_artifact_specification!inner(id)') \
                                    .in_('post_id', post_ids) \
-                                   .eq('active', True)
+                                   .eq('active', True)\
+                                   .eq('spec.active', True)
 
             if generator_name:
                 basequery = query.eq('generator_name', generator_name)
@@ -552,8 +553,9 @@ class SupabaseClient:
             post_ids_with_artifacts = [item['post_id'] for item in posts_with_artifacts.data]
 
             query = self.client.table('carver_post') \
-                               .select('*') \
+                               .select('*, source:carver_source!inner(id)') \
                                .eq('source_id', source_id) \
+                               .eq('source.active', True)\
                                .eq('active', True)
 
             if post_ids_with_artifacts:
@@ -578,9 +580,11 @@ class SupabaseClient:
         """Get a single artifact specification by ID with related data"""
         try:
             result = self.client.table('carver_artifact_specification') \
-                .select('*, carver_source(*)') \
+                .select('*, source:carver_source!inner(*)') \
                 .eq('id', spec_id) \
+                .eq('source.active', True)\
                 .execute()
+
             return result.data[0] if result.data else None
         except Exception as e:
             logger.error(f"Error getting specification {spec_id}: {str(e)}")
@@ -607,7 +611,7 @@ class SupabaseClient:
                     field_list.append('carver_source(id, name, carver_project(id, name))')
                 select_statement = ', '.join(field_list)
             else:
-                select_statement = '*, carver_source!inner(*, carver_project(*))'
+                select_statement = '*, carver_source!inner(*, carver_project!inner(*))'
 
             query = self.client.table('carver_artifact_specification').select(select_statement)
 
@@ -703,9 +707,12 @@ class SupabaseClient:
         """Get a single artifact by ID with related data"""
         try:
             result = self.client.table('carver_artifact') \
-                .select('*, carver_artifact_specification(*), carver_post(*)') \
+                .select('*, carver_artifact_specification!inner(*), carver_post!inner(*)') \
                 .eq('id', artifact_id) \
+                .eq('carver_artifact_specification.active', True)\
+                .eq('carver_post.active', True)\
                 .execute()
+
             return result.data[0] if result.data else None
         except Exception as e:
             logger.error(f"Error getting artifact {artifact_id}: {str(e)}")
@@ -757,7 +764,7 @@ class SupabaseClient:
                     field_list.append('carver_post(id, name, title, content_identifier)')
                 select_statement = ', '.join(field_list)
             else:
-                select_statement = '*, carver_artifact_specification(*), carver_post(name, title, description, content_type, content_identifier, url)'
+                select_statement = '*, carver_artifact_specification!inner(*), carver_post!inner(name, title, description, content_type, content_identifier, url)'
 
             query = self.client.table('carver_artifact').select(select_statement)
 

@@ -13,11 +13,17 @@ Give upto 5 points for each.
 
 Return the output in format given below
 
-Heading
--------
+Return the output in JSON format given below
 
-1. Point 1
-2. Point 2
+{{
+    "Pain Points":: ["Point1", "Point2", ...],
+    "Key Insights": ["Point1", "Point2", ...],
+    "Challenges": ["Point1", "Point2", ...],
+    "Solution Summary": ["Point1", "Point2", ...],
+    "Outcomes": ["Point1", "Point2", ...],
+    "Future Directions": ["Point1", "Point2", ...],
+    "Interesting": ["Point1", "Point2", ...],
+}}
 
 """
 
@@ -46,18 +52,19 @@ to the final conclusion.
 
 """
 
-def get_config(raw: bool = False):
+def get_config(raw: bool = False, show: bool = False):
     return {
-        "name": "Exa",
-        "description": "Exa Search Results",
+        "name": "Exa-Solutions",
+        "description": "Exa Search for Technical Solutions",
         "platforms": ['Exa', "EXA"],
+        "source_type": ["SEARCH"],
         "specifications": [
             {
                 "id": 1001,
                 "name": "Transcription",
                 "description": "Transcripts",
                 "config": {
-                    "generator": "transcription",
+                    "generator": "exa_content",
                     "languages": [
                         "en"
                     ],

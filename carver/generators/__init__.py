@@ -8,7 +8,7 @@ from .thread import ThreadGenerator
 from .summary import SummaryGenerator
 from .transcription import TranscriptionGenerator
 from .knowledgegraph import KnowledgeGraphGenerator
-
+from .exa_content import ExaContentGenerator
 class ArtifactGeneratorFactory:
     """Factory for creating artifact generators"""
 

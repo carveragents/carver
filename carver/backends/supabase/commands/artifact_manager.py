@@ -109,6 +109,7 @@ class ArtifactManager:
         for idx, post in enumerate(posts):
             try:
 
+                # print(idx, post['id'], post['title'])
                 # print(json.dumps(post, indent=4))
 
                 existing_artifacts = post['artifacts']

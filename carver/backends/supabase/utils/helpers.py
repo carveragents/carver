@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import glob
 
 from typing import List, Dict, Any
 from collections import defaultdict
@@ -84,7 +85,7 @@ def hyperlink(uri, label=None):
     return escape_mask.format(parameters, uri, label)
 
 
-def get_spec_config(path: str, raw=True) -> Any:
+def get_spec_config(path: str, raw=False, show=False) -> Any:
     """
     Load a Python/json file and return config
 
@@ -122,44 +123,38 @@ def get_spec_config(path: str, raw=True) -> Any:
     # Execute the module
     spec.loader.exec_module(module)
 
-    return module.get_config(raw=raw)
+    return module.get_config(raw=raw, show=show)
 
-def load_template(name: str, prefix: str = "", raw: bool = False) -> Dict:
+def load_template(name: str,
+                  model: str = "",
+                  raw: bool = False,
+                  show: bool = False,
+                  ) -> Dict:
     """Load and validate the template file"""
 
     parentdirs = [
         os.path.join(thisdir, "..", 'templates'),
         "."
     ]
+    if ((model not in ['', None]) and
+        (not name.startswith(f"{model}_"))):
+        name = f"{model}_{name}"
 
     alternatives = []
-
     for parentdir in parentdirs:
-        alternatives.extend([
-            name,
-            os.path.join(parentdir, f"{name}"),
-            os.path.join(parentdir, f"{name}.py"),
-            os.path.join(parentdir, f"{name}.json"),
-        ])
+        patterns = [f"{parentdir}/*{name}.json",
+                    f"{parentdir}/*{name}.py"]
+        for pattern in patterns:
+            alternatives.extend(glob.glob(pattern))
 
-        if prefix is not None:
-            alternatives.extend([
-                os.path.join(parentdir, f"{prefix}_{name}"),
-                os.path.join(parentdir, f"{prefix}_{name}.py"),
-                os.path.join(parentdir, f"{prefix}_{name}.json"),
-            ])
-
-    template_path = None
-    for path in alternatives:
-        if os.path.exists(path):
-            template_path = path
-            break
-
-    if template_path is None:
+    if len(alternatives) == 0:
         raise ValueError(f"Template missing required fields: {name}")
 
+    template_path = alternatives[0]
+    print("Using template from:", template_path)
+
     # Could be json or py
-    template = get_spec_config(template_path, raw=raw)
+    template = get_spec_config(template_path, raw=raw, show=show)
 
     return template
 

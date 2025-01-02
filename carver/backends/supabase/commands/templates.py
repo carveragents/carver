@@ -45,17 +45,18 @@ def list_templates(ctx, show_content):
         return
 
     table_data = []
-    headers = ["Model", "Name", "Description"]
+    headers = ["Model", "Name", "Verbose Name", "Description"]
 
     for file_path in template_files:
         try:
-            template = get_spec_config(str(file_path), raw=True)
+            template = get_spec_config(str(file_path), raw=True, show=False)
             name = file_path.stem
             model = name.split('_')[0] if '_' in name else ''
             template_name = '_'.join(name.split('_')[1:]) if '_' in name else name
             table_data.append([
                 model,
                 template_name,
+                template['name'],
                 template.get('description', 'No description')
             ])
 
@@ -71,7 +72,9 @@ def list_templates(ctx, show_content):
 def show_template(ctx, template_name):
     """Display full content of a specific template."""
     try:
-        template = load_template(template_name, raw=True)
+        template = load_template(name=template_name,
+                                 raw=True,
+                                 show=True)
 
         if 'specifications' in template:
             click.echo("\nDependency Tree:")
