@@ -103,6 +103,7 @@ class SubstackReader(FeedReader):
             return content
 
         except Exception as e:
+            traceback.print_exc()
             logger.warning(f"Error getting full content for {item.get('slug', '')}: {str(e)}")
             # Fall back to description/subtitle if available
             return item.get('description', '') or item.get('subtitle', '')

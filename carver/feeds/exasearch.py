@@ -77,7 +77,7 @@ class ExaSearchReader(ExaReader):
         max_results = self.source['config'].get('num_results', 25)
         if self.max_results and max_results != self.max_results:
             print(f"Overriding default num_results ({max_results}) with {self.max_results}")
-            max_results = self.max_results
+            max_results = min(self.max_results, 30)
 
         extra = {}
         if 'category' in self.source['config']:
@@ -94,7 +94,24 @@ class ExaSearchReader(ExaReader):
             )
 
             # Process and return results
-            return [self.prepare_item(item) for item in response.results]
+            items = [self.prepare_item(item) for item in response.results]
+
+            default_domain_exclude = ['twitter.com', 'x.com']
+            domain_exclude = self.source['config'].get('domain_exclude',
+                                                      default_domain_exclude)
+
+            skipped = 0
+            final_items = []
+            for item in items:
+                if any([ex in item['url'] for ex in domain_exclude]):
+                    skipped += 1
+                    continue
+                final_items.append(item)
+
+            if skipped > 0:
+                print(f"Skipped {skipped} items due overlap with {domain_exclude}")
+
+            return final_items
 
         except Exception as e:
             traceback.print_exc()

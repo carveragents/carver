@@ -181,3 +181,62 @@ class SourceManager:
         except Exception as e:
             logger.error(f"Error generating knowledge graphs for project: {str(e)}")
             raise
+
+    def bulk_activate(self, source_ids: List[int]) -> int:
+        """
+        Activate multiple sources by their IDs.
+
+        Args:
+            source_ids: List of source IDs to activate
+
+        Returns:
+            Number of sources updated
+        """
+        try:
+            # Create update data for each source
+            to_update = [
+                {
+                    'id': source_id,
+                    'active': True,
+                    'updated_at': datetime.utcnow().isoformat()
+                }
+                for source_id in source_ids
+            ]
+
+            # Perform bulk update
+            updated = self.db.source_bulk_update(to_update)
+            return len(updated)
+
+        except Exception as e:
+            logger.error(f"Error bulk activating sources: {str(e)}")
+            raise
+
+    def bulk_deactivate(self, source_ids: List[int]) -> int:
+        """
+        Deactivate multiple sources by their IDs.
+
+        Args:
+            source_ids: List of source IDs to deactivate
+
+        Returns:
+            Number of sources updated
+        """
+        try:
+            # Create update data for each source
+            to_update = [
+                {
+                    'id': source_id,
+                    'active': False,
+                    'updated_at': datetime.utcnow().isoformat()
+                }
+                for source_id in source_ids
+            ]
+
+            # Perform bulk update
+            updated = self.db.source_bulk_update(to_update)
+            return len(updated)
+
+        except Exception as e:
+            logger.error(f"Error bulk deactivating sources: {str(e)}")
+            raise
+

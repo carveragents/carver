@@ -563,3 +563,34 @@ def generate_knowledge_graph(ctx, source_id: int, batch_size: int,
         click.echo(f"Error: {str(e)}", err=True)
 
 
+@source.command()
+@click.argument('source_ids', nargs=-1, type=int, required=True)
+@click.pass_context
+def activate(ctx, source_ids):
+    """Activate one or more sources by their IDs."""
+    source_manager = ctx.obj['source_manager']
+
+    db = ctx.obj['supabase']
+
+    try:
+        updated = db.source_bulk_update_flag(list(source_ids),
+                                                  active=True)
+        click.echo(f"Successfully activated {updated} sources")
+    except Exception as e:
+        traceback.print_exc()
+        click.echo(f"Error activating sources: {str(e)}", err=True)
+
+@source.command()
+@click.argument('source_ids', nargs=-1, type=int, required=True)
+@click.pass_context
+def deactivate(ctx, source_ids):
+    """Deactivate one or more sources by their IDs."""
+
+    db = ctx.obj['supabase']
+    try:
+        updated = db.source_bulk_update_flag(list(source_ids),
+                                             active=False)
+        click.echo(f"Successfully deactivated {updated} sources")
+    except Exception as e:
+        traceback.print_exc()
+        click.echo(f"Error deactivating sources: {str(e)}", err=True)

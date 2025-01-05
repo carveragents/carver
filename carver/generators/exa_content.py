@@ -43,6 +43,12 @@ class ExaContentGenerator(BaseArtifactGenerator):
                 result = self.exa.get_contents([url1], text=True)
                 if result.results:
                     body = result.results[0]
+            else:
+                result = self.exa.get_contents([url], text=True)
+                if result.results:
+                    body = result.results[0]
+                    if len(body.text) < len(abstract.text):
+                        body = abstract
 
             response = {
                 "generator_name": self.name,

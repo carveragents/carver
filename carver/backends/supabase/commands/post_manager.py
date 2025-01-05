@@ -67,15 +67,20 @@ class PostManager:
                 post['updated_at'] = now
 
             # Fix missing columns
-            post['name'] = post['title']
-
-            # Now continue
-            content_id = post['content_identifier']
+            if 'name' not in post:
+                post['name'] = post['title']
+            post['name'] = post['name'][:255]
+            post['title'] = post['title'][:500]
 
             # Ensure that there are no duplicates
+            content_id = post['content_identifier']
             if content_id in seen:
                 continue
             seen[content_id] = 1
+
+            # Now continue
+            if 'author' in post and post['author'] and len(post['author']) > 255:
+                post['author'] = post['author'][:255]
 
             if content_id in existing_map:
                 d1 = dateparser.parse(post['published_at'])
@@ -106,7 +111,7 @@ class PostManager:
 
         return len(created), len(updated)
 
-    def bulk_activate(self, source_id: int, content_identifiers: List[str]) -> int:
+    def bulk_activate_by_content(self, source_id: int, content_identifiers: List[str]) -> int:
         """Activate multiple posts by their content identifiers"""
         posts = self.db.post_search(
             source_id=source_id,
@@ -123,7 +128,7 @@ class PostManager:
         updated = self.db.post_bulk_update(to_update)
         return len(updated)
 
-    def bulk_deactivate(self, source_id: int, content_identifiers: List[str]) -> int:
+    def bulk_deactivate_by_content(self, source_id: int, content_identifiers: List[str]) -> int:
         """Deactivate multiple posts by their content identifiers"""
         posts = self.db.post_search(
             source_id=source_id,
@@ -139,3 +144,18 @@ class PostManager:
 
         updated = self.db.post_bulk_update(to_update)
         return len(updated)
+
+    def bulk_deactivate_by_source(self, source_id: int) -> int:
+        """Deactivate all posts for a source"""
+        posts = self.db.post_search(
+            source_id=source_id,
+            active=True,
+            fields=['id']
+        )
+
+        if not posts:
+            return 0
+
+        post_ids = [post['id'] for post in posts]
+        return self.db.post_bulk_update_flag(post_ids, active=False)
+

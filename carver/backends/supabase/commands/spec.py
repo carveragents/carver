@@ -684,7 +684,7 @@ def generate_bulk(ctx, spec_id: int, max_retries: int, last: Optional[str],
             click.echo(f"Specification {spec_id} is not active")
             return
 
-        source = spec['carver_source']
+        source = spec['source']
         if not source:
             click.echo(f"Source not found for specification {spec_id}")
             return
@@ -755,3 +755,43 @@ def generate_bulk(ctx, spec_id: int, max_retries: int, last: Optional[str],
     except Exception as e:
         traceback.print_exc()
         click.echo(f"Error: {str(e)}", err=True)
+
+@spec.command()
+@click.option('--source-id', type=int, help='Source ID')
+@click.option('--spec-id', type=int, help='Specification ID')
+@click.pass_context
+def bulk_deactivate_artifacts(ctx, source_id: Optional[int], spec_id: Optional[int]):
+    """Deactivate all artifacts for a source or specification"""
+    if not source_id and not spec_id:
+        click.echo("Either source-id or spec-id must be provided", err=True)
+        return
+
+    db = ctx.obj['supabase']
+    manager = ctx.obj['manager']
+
+    try:
+        if source_id:
+            # Get all specifications for the source
+            specs = db.specification_search(source_id=source_id)
+            if not specs:
+                click.echo(f"No specifications found for source {source_id}")
+                return
+
+            # Deactivate artifacts for each specification
+            total_deactivated = 0
+            for spec in specs:
+                deactivated = manager.artifact_bulk_deactivate(spec_id=spec['id'])
+                total_deactivated += len(deactivated) if deactivated else 0
+                click.echo(f"Deactivated {len(deactivated) if deactivated else 0} artifacts for specification {spec['id']}")
+
+            click.echo(f"\nTotal artifacts deactivated: {total_deactivated}")
+
+        else:  # spec_id provided
+            # Deactivate artifacts for the specification
+            deactivated = manager.artifact_bulk_deactivate(spec_id=spec_id)
+            click.echo(f"Deactivated {len(deactivated) if deactivated else 0} artifacts for specification {spec_id}")
+
+    except Exception as e:
+        traceback.print_exc()
+        click.echo(f"Error deactivating artifacts: {str(e)}", err=True)
+

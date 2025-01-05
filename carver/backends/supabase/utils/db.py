@@ -175,6 +175,42 @@ class SupabaseClient:
             .execute()
         return result.data[0] if result.data else None
 
+    def source_bulk_update(self, sources: List[Dict[str, Any]],
+                           chunk_size: int = 100) -> List[Dict[str, Any]]:
+        """
+        Bulk update posts with automatic chunking.
+        """
+        updated_sources = []
+
+        # Validate all posts have IDs
+        if not all('id' in source for source in sources):
+            raise ValueError("All sources must have 'id' field for bulk update")
+
+        # Process in chunks
+        for chunk in chunks(sources, chunk_size):
+            try:
+                result = self.client.table('carver_source') \
+                    .upsert(chunk) \
+                    .execute()
+                if result.data:
+                    updated_sources.extend(result.data)
+            except Exception as e:
+                logger.error(f"Error in bulk update: {str(e)}")
+                continue
+
+        return updated_sources
+
+    def source_bulk_update_flag(self, source_ids: List[int],
+                                active: bool) -> List[Dict[str, Any]]:
+
+        data = {'active': active }
+
+        response = self.client.table('carver_source')\
+                              .update(data)\
+                              .in_('id', source_ids)\
+                              .execute()
+        return response.data
+
     def source_update_metadata(self, source_id: int, metadata: Dict[str, Any]) -> Dict[str, Any]:
         """Update source's analysis metadata"""
         current = self.source_get(source_id)
@@ -393,6 +429,18 @@ class SupabaseClient:
 
         return updated_posts
 
+    def post_bulk_update_flag(self, post_ids: List[int],
+                              active: bool) -> List[Dict[str, Any]]:
+
+        data = {'active': active }
+
+        response = self.client.table('carver_post')\
+                              .update(data)\
+                              .in_('id', post_ids)\
+                              .execute()
+
+        return response.data
+
     def post_bulk_activate(self, source_id: int, content_identifiers: List[str]) -> List[Dict[str, Any]]:
         """Activate posts by their content identifiers"""
         try:
@@ -401,14 +449,9 @@ class SupabaseClient:
                 source_id=source_id,
                 content_identifier=content_identifiers
             )
+            post_ids = [p['id'] for p in posts]
 
-            updates = [{
-                'id': item['id'],
-                'active': True,
-                'updated_at': datetime.utcnow().isoformat()
-            } for item in posts]
-
-            return self.post_bulk_update(updates)
+            return self.post_bulk_update_flag(post_ids, active=True)
         except Exception as e:
             logger.error(f"Error in bulk activate: {str(e)}")
             raise
@@ -422,13 +465,13 @@ class SupabaseClient:
                 content_identifier=content_identifiers
             )
 
-            updates = [{
-                'id': item['id'],
-                'active': False,
-                'updated_at': datetime.utcnow().isoformat()
-            } for item in posts]
+            posts = self.post_search(
+                source_id=source_id,
+                content_identifier=content_identifiers
+            )
+            post_ids = [p['id'] for p in posts]
 
-            return self.post_bulk_update(updates)
+            return self.post_bulk_update_flag(post_ids, active=False)
         except Exception as e:
             logger.error(f"Error in bulk deactivate: {str(e)}")
             raise

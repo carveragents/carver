@@ -1,32 +1,69 @@
 summary_prompt = """
-Give me an exhaustive granular summary of:
 
-(a) Pain points identified
-(b) Key insights about the pain points
-(c) Challenges encountered in developing a solution. What was difficult?
-(d) Solution Summary. Identify architectural and technical choices, process.
-(e) Outcomes delivered and impact. Be specific.
-(f) Future directions and next steps
-(g) Interesting projects and people
+Please analyze this technical paper and return a
+structured JSON response with the following schema:
 
-Give upto 5 points for each.
+{
+  // Basic Paper Information
+  'title': 'string',
+  'authors': ['string'],
+  'affiliations': ['string'],
+  'year': 'number',
+  'keywords': ['string'],
+  'citation_count': 'number | null',
+  'cited_by_papers': ['string'],
 
-Return the output in JSON format given below
+  'summary': ['string'],
 
-{{
-    "Pain Points":: ["Point1", "Point2", ...],
-    "Key Insights": ["Point1", "Point2", ...],
-    "Challenges": ["Point1", "Point2", ...],
-    "Solution Summary": ["Point1", "Point2", ...],
-    "Outcomes": ["Point1", "Point2", ...],
-    "Future Directions": ["Point1", "Point2", ...],
-    "Interesting": ["Point1", "Point2", ...],
-}}
+  // Core Research Elements
+  'research_questions': ['string'],
+  'methodology': {
+    'approach': ['string'],
+    'datasets': ['string'],
+    'technical_specs': ['string']
+  },
 
+  // Results and Impact
+  'findings': {
+    'main_results': ['string'],
+    'quantitative_metrics': ['string']
+  },
+  'innovations': ['string'],
+  'limitations': ['string'],
+  'future_work': ['string'],
+  'impact': ['string'],
 
+  // Reinforcement Learning Specific Details
+  'rl_specific': {
+    'training_environment': 'string | null',
+    'reward_structure': 'string | null',
+    'action_space': 'string | null',
+    'state_space': 'string | null',
+    'baseline_comparisons': ['string'],
+    'sample_efficiency': 'string | null'
+  },
 
+  // Alignment and Safety Information
+  'alignment_specific': {
+    'alignment_objective': 'string | null',
+    'safety_considerations': ['string'],
+    'human_feedback_incorporation': 'string | null',
+    'reward_modeling': 'string | null',
+    'value_learning': 'string | null',
+    'robustness_measures': ['string'],
+    'evaluation_metrics': ['string']
+  }
+}
 
+Note:
+- The paper content may be truncated. Thats fine. Stick the given content only
+- Use null for fields where information is not available or not applicable
+- All string arrays should be non-null but may be empty []
+- Populate RL and alignment sections only if relevant to the paper
+- Extract all available information that fits this schema
+- for summary, innovations, impact, future_work see if you can extract upto 5 points
 """
+
 
 def get_config(raw: bool = False, show: bool = False):
     return {
@@ -49,14 +86,14 @@ def get_config(raw: bool = False, show: bool = False):
             },
             {
                 "id": 1002,
-                "name": "Product Intel",
-                "description": "Product intelligence from content",
+                "name": "Paper Summary (Academic)",
+                "description": "Summary to identify interesting new research content",
                 "config": {
                     "dependencies": [1001],
                     "prompts": [
                         {
                             "prompt": summary_prompt,
-                            "generator_id": "en-product"
+                            "generator_id": "en-academic-summary"
                         }
                     ],
                     "generator": "summary"

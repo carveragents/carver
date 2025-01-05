@@ -229,164 +229,6 @@ def show(ctx, project_id: int):
         traceback.print_exc()
         click.echo(f"Error: {str(e)}", err=True)
 
-@project.command()
-@click.argument('project_id', type=int)
-@click.option('--fields', help='Comma-separated list of fields to sync for each source')
-@click.option('--max-results', type=int, help='Maximum number of posts to fetch per source')
-@click.pass_context
-def sync_posts(ctx, project_id: int, fields: Optional[str], max_results: Optional[int]):
-    """Sync posts from all active sources for an project."""
-    db = ctx.obj['supabase']
-    post_manager = ctx.obj['post_manager']
-
-    try:
-        # Get all active sources for the project
-        sources = db.source_search(
-            active=True,
-            project_id=project_id
-        )
-
-        if not sources:
-            click.echo(f"No active sources found for project {project_id}")
-            return
-
-        total_added = 0
-        total_updated = 0
-        field_list = fields.split(',') if fields else None
-
-        # Process each source
-        for source in sources:
-            click.echo(f"\nProcessing source: {source['name']} (ID: {source['id']})")
-            try:
-                added, updated = post_manager.sync_posts(
-                    source['id'],
-                    field_list,
-                    max_results
-                )
-                total_added += added
-                total_updated += updated
-                click.echo(f"- Added: {added}, Updated: {updated}")
-            except Exception as e:
-                traceback.print_exc()
-                click.echo(f"Error processing source {source['id']}: {str(e)}", err=True)
-                ctx.exit(1)
-
-        click.echo(f"\nSync completed for {len(sources)} sources")
-        click.echo(f"Total posts: {total_added} added, {total_updated} updated")
-
-    except Exception as e:
-        traceback.print_exc()
-        click.echo(f"Error: {str(e)}", err=True)
-
-@project.command()
-@click.argument('project_id', type=int)
-@click.option('--max-retries', type=int, default=3,
-              help='Maximum number of retries for dependency resolution')
-@click.option('--last', type=str, help='Filter posts by time (e.g. "1d", "2h", "30m")')
-@click.option('--offset', default=0, type=int, help='Offset for search results')
-@click.option('--limit', default=50, type=int, help='Maximum number of posts to fetch')
-@click.pass_context
-def generate_bulk(ctx, project_id: int, max_retries: int, last: Optional[str],
-                 offset: int, limit: int):
-    """Generate bulk content for all active specifications of an project in dependency order."""
-    db = ctx.obj['supabase']
-    artifact_manager = ctx.obj['artifact_manager']
-
-    try:
-        # Get all active specifications for the project
-        specs = db.specification_search(
-            project_id=project_id,
-            active=True
-        )
-
-        if not specs:
-            click.echo(f"No active specifications found for project {project_id}")
-            return
-
-        click.echo(f"Found {len(specs)} specs")
-
-        # Sort specifications by dependencies
-        try:
-            sorted_specs_ids = topological_sort(specs)
-        except ValueError as e:
-            click.echo(f"Error in dependency resolution: {str(e)}", err=True)
-            return
-
-        # Group specifications by source
-        source_specs = {}
-        for spec in specs:
-            source_id = spec['source_id']
-            if source_id not in source_specs:
-                source_specs[source_id] = {}
-            source_specs[source_id][spec['id']] = spec
-
-        click.echo(f"Found {len(source_specs)} sources")
-
-        # Process each source
-        total_generated = 0
-        failed_specs = []
-
-        for source_id, source_specs in source_specs.items():
-
-            sample_spec = list(source_specs.values())[0]
-            source = sample_spec['carver_source']
-            label = f"[{source_id}] {source['name']}"
-            click.echo(f"\n{label}: Started processing")
-
-            # Get posts needing artifacts
-            time_filter = parse_date_filter(last) if last else None
-            posts = db.post_search_with_artifacts(
-                source_id=source_id,
-                modified_after=time_filter,
-                offset=offset,
-                limit=limit
-            )
-
-            if not posts:
-                click.echo(f"No posts found requiring artifact generation for source {source_id}")
-                continue
-
-            click.echo(f"{label}: Found {len(posts)} posts with artifacts")
-
-            # Process specifications for this source
-            for spec_id in sorted_specs_ids:
-                if spec_id not in source_specs:
-                    continue
-
-                spec = source_specs[spec_id]
-                source = spec['carver_source']
-                click.echo(f"\n{label}: Processing Specification [{spec_id}] {spec['name']}")
-
-                retry_count = 0
-                success = False
-
-                while retry_count < max_retries and not success:
-                    try:
-                        results = artifact_manager.artifact_bulk_create_from_spec(spec,
-                                                                                  posts,
-                                                                                  None)
-                        total_generated += len(results)
-                        click.echo(f"Generated {len(results)} artifacts")
-                        success = True
-                    except Exception as e:
-                        retry_count += 1
-                        if retry_count < max_retries:
-                            click.echo(f"Retry {retry_count}/{max_retries} for spec {spec['id']}")
-                        else:
-                            click.echo(f"Failed to process spec {spec['id']} after {max_retries} attempts: {str(e)}", err=True)
-                            failed_specs.append(spec['id'])
-
-        click.echo(f"\nBulk generation completed")
-        click.echo(f"Total artifacts generated: {total_generated}")
-        if failed_specs:
-            click.echo(f"Failed specifications: {failed_specs}")
-
-    except Exception as e:
-        traceback.print_exc()
-        click.echo(f"Error: {str(e)}", err=True)
-
-
-
 def validate_choice(value):
     valid_options = ['y','n', 'e', 'q']
     if value.lower() not in valid_options:
@@ -645,83 +487,320 @@ def update_embeddings(ctx, project_id: int, batch_size: int, status: Optional[st
         click.echo(f"Error updating embeddings: {str(e)}", err=True)
 
 @project.command()
-@click.argument('project_id', type=int)
+@click.argument('project_id', type=int, required=False)
+@click.option('--fields', help='Comma-separated list of fields to sync for each source')
+@click.option('--max-results', type=int, help='Maximum number of posts to fetch per source')
 @click.pass_context
-def update_analytics(ctx, project_id: int):
-    """Update analytics metadata for all sources of an project."""
+def sync_posts(ctx, project_id: Optional[int], fields: Optional[str], max_results: Optional[int]):
+    """Sync posts from all active sources for a project or all projects."""
     db = ctx.obj['supabase']
+    post_manager = ctx.obj['post_manager']
 
     try:
-        # Verify project exists
-        project = db.project_get(project_id)
-        if not project:
-            click.echo(f"Project {project_id} not found", err=True)
-            return
-
-        click.echo(f"\nUpdating analytics for project: {project['name']} (ID: {project_id})")
-
-        # Get all sources for this project
-        sources = db.source_search(
-            project_id=project_id,
-            active=True,
-            fields=['id', 'name']
-        )
-
-        if not sources:
-            click.echo("No sources found for this project")
-            return
-
-        click.echo(f"Found {len(sources)} sources to process")
-
-        project_metrics = {
-            'last_update': datetime.utcnow().isoformat(),
-            'sources_count': len(sources),
-            'sources': {},
-            'totals': {
-                'posts': 0,
-                'artifacts': 0,
-                'specifications': 0
-            }
-        }
-
-        # Process each source
-        with click.progressbar(sources, label='Processing sources') as source_list:
-            for source in source_list:
-                # Update analytics for this source
-                updated_source = db.source_update_analytics(source['id'])
-
-                if updated_source and updated_source.get('analysis_metadata'):
-                    metrics = updated_source['analysis_metadata']['metrics']
-
-                    # Accumulate totals for project-level metrics
-                    project_metrics['totals']['posts'] += metrics['counts']['posts']
-                    project_metrics['totals']['artifacts'] += metrics['counts']['artifacts']
-                    project_metrics['totals']['specifications'] += metrics['counts']['specifications']
-
-                    # Store summarized metrics for this source
-                    project_metrics['sources'][source['id']] = {
-                        'name': source['name'],
-                        'counts': metrics['counts']
-                    }
-
-        # Update project metadata
-        project_analytics = {
-            'metrics': project_metrics,
-        }
-
-        project = db.project_update_metadata(project_id, project_analytics)
-
-        if project:
-            # Print summary
-            click.echo("\nAnalytics update completed:")
-            click.echo(f"- Total Sources: {project_metrics['sources_count']}")
-            click.echo(f"- Total Posts: {project_metrics['totals']['posts']}")
-            click.echo(f"- Total Artifacts: {project_metrics['totals']['artifacts']}")
-            click.echo(f"- Total Specifications: {project_metrics['totals']['specifications']}")
+        # Get projects to process
+        if project_id:
+            projects = [db.project_get(project_id)]
+            if not projects[0]:
+                click.echo(f"Project with ID {project_id} not found", err=True)
+                return
         else:
-            click.echo("Error updating project analytics", err=True)
+            projects = db.project_search(active=True)
+            if not projects:
+                click.echo("No active projects found")
+                return
+            click.echo(f"Found {len(projects)} active projects to process")
+
+        total_projects = 0
+        total_sources = 0
+        total_added = 0
+        total_updated = 0
+        field_list = fields.split(',') if fields else None
+
+        # Process each project
+        for project in projects:
+            click.echo(f"\nProcessing project: {project['name']} (ID: {project['id']})")
+
+            # Get all active sources for the project
+            sources = db.source_search(
+                active=True,
+                project_id=project['id']
+            )
+
+            if not sources:
+                click.echo(f"No active sources found for project {project['id']}")
+                continue
+
+            project_added = 0
+            project_updated = 0
+
+            # Process each source
+            for source in sources:
+                click.echo(f"\nProcessing source: {source['name']} (ID: {source['id']})")
+                try:
+                    added, updated = post_manager.sync_posts(
+                        source['id'],
+                        field_list,
+                        max_results
+                    )
+                    project_added += added
+                    project_updated += updated
+                    click.echo(f"- Added: {added}, Updated: {updated}")
+                except Exception as e:
+                    traceback.print_exc()
+                    click.echo(f"Error processing source {source['id']}: {str(e)}", err=True)
+                    continue
+
+            total_projects += 1
+            total_sources += len(sources)
+            total_added += project_added
+            total_updated += project_updated
+            click.echo(f"\nProject totals - Added: {project_added}, Updated: {project_updated}")
+
+        click.echo(f"\nSync completed for {total_projects} projects and {total_sources} sources")
+        click.echo(f"Total posts: {total_added} added, {total_updated} updated")
 
     except Exception as e:
         traceback.print_exc()
         click.echo(f"Error: {str(e)}", err=True)
 
+@project.command()
+@click.argument('project_id', type=int, required=False)
+@click.option('--max-retries', type=int, default=3,
+              help='Maximum number of retries for dependency resolution')
+@click.option('--last', type=str, help='Filter posts by time (e.g. "1d", "2h", "30m")')
+@click.option('--offset', default=0, type=int, help='Offset for search results')
+@click.option('--limit', default=50, type=int, help='Maximum number of posts to fetch')
+@click.pass_context
+def generate_bulk(ctx, project_id: Optional[int], max_retries: int, last: Optional[str],
+                 offset: int, limit: int):
+    """Generate bulk content for all active specifications of a project or all projects in dependency order."""
+    db = ctx.obj['supabase']
+    artifact_manager = ctx.obj['artifact_manager']
+
+    try:
+        # Get projects to process
+        if project_id:
+            projects = [db.project_get(project_id)]
+            if not projects[0]:
+                click.echo(f"Project with ID {project_id} not found", err=True)
+                return
+        else:
+            projects = db.project_search(active=True)
+            if not projects:
+                click.echo("No active projects found")
+                return
+            click.echo(f"Found {len(projects)} active projects to process")
+
+        total_projects = 0
+        total_generated = 0
+        all_failed_specs = []
+
+        # Process each project
+        for project in projects:
+            click.echo(f"\nProcessing project: {project['name']} (ID: {project['id']})")
+
+            # Get all active specifications for the project
+            specs = db.specification_search(
+                project_id=project['id'],
+                active=True
+            )
+
+            if not specs:
+                click.echo(f"No active specifications found for project {project['id']}")
+                continue
+
+            click.echo(f"Found {len(specs)} specs")
+
+            # Sort specifications by dependencies
+            try:
+                sorted_specs_ids = topological_sort(specs)
+            except ValueError as e:
+                click.echo(f"Error in dependency resolution: {str(e)}", err=True)
+                continue
+
+            # Group specifications by source
+            source_specs = defaultdict(dict)
+            for spec in specs:
+                source_specs[spec['source_id']][spec['id']] = spec
+
+            click.echo(f"Found {len(source_specs)} sources")
+            project_generated = 0
+            failed_specs = []
+
+            # Process each source
+            for source_id, source_specs_dict in source_specs.items():
+                sample_spec = next(iter(source_specs_dict.values()))
+                source = sample_spec['carver_source']
+                label = f"[{source_id}] {source['name']}"
+                click.echo(f"\n{label}: Started processing")
+
+                # Get posts needing artifacts
+                time_filter = parse_date_filter(last) if last else None
+                posts = db.post_search_with_artifacts(
+                    source_id=source_id,
+                    modified_after=time_filter,
+                    offset=offset,
+                    limit=limit
+                )
+
+                if not posts:
+                    click.echo(f"No posts found requiring artifact generation for source {source_id}")
+                    continue
+
+                click.echo(f"{label}: Found {len(posts)} posts with artifacts")
+
+                # Process specifications for this source
+                for spec_id in sorted_specs_ids:
+                    if spec_id not in source_specs_dict:
+                        continue
+
+                    spec = source_specs_dict[spec_id]
+                    source = spec['carver_source']
+                    click.echo(f"\n{label}: Processing Specification [{spec_id}] {spec['name']}")
+
+                    retry_count = 0
+                    success = False
+
+                    while retry_count < max_retries and not success:
+                        try:
+                            results = artifact_manager.artifact_bulk_create_from_spec(
+                                spec,
+                                posts,
+                                None
+                            )
+                            project_generated += len(results)
+                            click.echo(f"Generated {len(results)} artifacts")
+                            success = True
+                        except Exception as e:
+                            retry_count += 1
+                            if retry_count < max_retries:
+                                click.echo(f"Retry {retry_count}/{max_retries} for spec {spec['id']}")
+                            else:
+                                click.echo(f"Failed to process spec {spec['id']} after {max_retries} attempts: {str(e)}", err=True)
+                                failed_specs.append(spec['id'])
+
+            total_projects += 1
+            total_generated += project_generated
+            if failed_specs:
+                all_failed_specs.extend(failed_specs)
+                click.echo(f"\nProject failed specifications: {failed_specs}")
+            click.echo(f"\nProject total artifacts generated: {project_generated}")
+
+        click.echo(f"\nBulk generation completed for {total_projects} projects")
+        click.echo(f"Total artifacts generated: {total_generated}")
+        if all_failed_specs:
+            click.echo(f"Failed specifications across all projects: {all_failed_specs}")
+
+    except Exception as e:
+        traceback.print_exc()
+        click.echo(f"Error: {str(e)}", err=True)
+
+@project.command()
+@click.argument('project_id', type=int, required=False)
+@click.pass_context
+def update_analytics(ctx, project_id: Optional[int]):
+    """Update analytics metadata for all sources of a project or all projects."""
+    db = ctx.obj['supabase']
+
+    try:
+        # Get projects to process
+        if project_id:
+            projects = [db.project_get(project_id)]
+            if not projects[0]:
+                click.echo(f"Project with ID {project_id} not found", err=True)
+                return
+        else:
+            projects = db.project_search(active=True)
+            if not projects:
+                click.echo("No active projects found")
+                return
+            click.echo(f"Found {len(projects)} active projects to process")
+
+        total_projects = 0
+        total_sources = 0
+        total_posts = 0
+        total_artifacts = 0
+        total_specifications = 0
+
+        # Process each project
+        for project in projects:
+            click.echo(f"\nUpdating analytics for project: {project['name']} (ID: {project['id']})")
+
+            # Get all sources for this project
+            sources = db.source_search(
+                project_id=project['id'],
+                active=True,
+                fields=['id', 'name']
+            )
+
+            if not sources:
+                click.echo("No sources found for this project")
+                continue
+
+            click.echo(f"Found {len(sources)} sources to process")
+
+            project_metrics = {
+                'last_update': datetime.utcnow().isoformat(),
+                'sources_count': len(sources),
+                'sources': {},
+                'totals': {
+                    'posts': 0,
+                    'artifacts': 0,
+                    'specifications': 0
+                }
+            }
+
+            # Process each source
+            with click.progressbar(sources, label='Processing sources') as source_list:
+                for source in source_list:
+                    # Update analytics for this source
+                    updated_source = db.source_update_analytics(source['id'])
+
+                    if updated_source and updated_source.get('analysis_metadata'):
+                        metrics = updated_source['analysis_metadata']['metrics']
+
+                        # Accumulate totals for project-level metrics
+                        project_metrics['totals']['posts'] += metrics['counts']['posts']
+                        project_metrics['totals']['artifacts'] += metrics['counts']['artifacts']
+                        project_metrics['totals']['specifications'] += metrics['counts']['specifications']
+
+                        # Store summarized metrics for this source
+                        project_metrics['sources'][source['id']] = {
+                            'name': source['name'],
+                            'counts': metrics['counts']
+                        }
+
+            # Update project metadata
+            project_analytics = {
+                'metrics': project_metrics,
+            }
+
+            project = db.project_update_metadata(project['id'], project_analytics)
+
+            if project:
+                total_projects += 1
+                total_sources += project_metrics['sources_count']
+                total_posts += project_metrics['totals']['posts']
+                total_artifacts += project_metrics['totals']['artifacts']
+                total_specifications += project_metrics['totals']['specifications']
+
+                # Print project summary
+                click.echo(f"\nProject analytics updated:")
+                click.echo(f"- Sources: {project_metrics['sources_count']}")
+                click.echo(f"- Posts: {project_metrics['totals']['posts']}")
+                click.echo(f"- Artifacts: {project_metrics['totals']['artifacts']}")
+                click.echo(f"- Specifications: {project_metrics['totals']['specifications']}")
+            else:
+                click.echo("Error updating project analytics", err=True)
+
+        # Print overall summary
+        if total_projects > 1:
+            click.echo(f"\nOverall analytics update completed for {total_projects} projects:")
+            click.echo(f"- Total Sources: {total_sources}")
+            click.echo(f"- Total Posts: {total_posts}")
+            click.echo(f"- Total Artifacts: {total_artifacts}")
+            click.echo(f"- Total Specifications: {total_specifications}")
+
+    except Exception as e:
+        traceback.print_exc()
+        click.echo(f"Error: {str(e)}", err=True)

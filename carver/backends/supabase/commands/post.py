@@ -37,13 +37,13 @@ def sync(ctx, source_id: int, fields: Optional[str], max_results: Optional[int])
 @click.option('--source-id', type=int, required=True, help='Source ID')
 @click.option('--identifiers', required=True, help='Comma-separated list of content identifiers')
 @click.pass_context
-def activate(ctx, source_id: int, identifiers: str):
+def activate_by_content(ctx, source_id: int, identifiers: str):
     """Activate specific posts by their content identifiers"""
     manager = ctx.obj['post_manager']
 
     try:
         id_list = [i.strip() for i in identifiers.split(',')]
-        updated = manager.bulk_activate(source_id, id_list)
+        updated = manager.bulk_activate_by_content(source_id, id_list)
         click.echo(f"Successfully activated {updated} posts")
     except Exception as e:
         traceback.print_exc()
@@ -53,13 +53,13 @@ def activate(ctx, source_id: int, identifiers: str):
 @click.option('--source-id', type=int, required=True, help='Source ID')
 @click.option('--identifiers', required=True, help='Comma-separated list of content identifiers')
 @click.pass_context
-def deactivate(ctx, source_id: int, identifiers: str):
+def deactivate_by_content(ctx, source_id: int, identifiers: str):
     """Deactivate specific posts by their content identifiers"""
     manager = ctx.obj['post_manager']
 
     try:
         id_list = [i.strip() for i in identifiers.split(',')]
-        updated = manager.bulk_deactivate(source_id, id_list)
+        updated = manager.bulk_deactivate_by_content(source_id, id_list)
         click.echo(f"Successfully deactivated {updated} posts")
     except Exception as e:
         traceback.print_exc()
@@ -221,3 +221,34 @@ def show(ctx, post_id: int):
     except Exception as e:
         traceback.print_exc()
         click.echo(f"Error: {str(e)}", err=True)
+
+@post.command()
+@click.option('--source-id', required=True, type=int, help='Source ID')
+@click.pass_context
+def bulk_deactivate_by_source(ctx, source_id: int):
+    """Deactivate all posts for a source"""
+    manager = ctx.obj['post_manager']
+
+    try:
+        # Get all active posts for the source
+        posts = manager.db.post_search(
+            source_id=source_id,
+            active=True,
+            fields=['id'],
+            limit=1000,
+        )
+
+        if not posts:
+            click.echo(f"No active posts found for source {source_id}")
+            return
+
+        # Create update data for all posts
+        post_ids = [post['id'] for post in posts]
+        updated = manager.db.post_bulk_update_flag(post_ids, active=False)
+
+        click.echo(f"Successfully deactivated {len(updated)} posts")
+
+    except Exception as e:
+        traceback.print_exc()
+        click.echo(f"Error deactivating posts: {str(e)}", err=True)
+

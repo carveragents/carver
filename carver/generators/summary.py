@@ -113,7 +113,6 @@ class SummaryGenerator(BaseArtifactGenerator):
         # => First get the transcript
         transcript = None
         for artifact in existing:
-            print(artifact['generator_name'], artifact['generator_id'])
             if ((artifact['generator_name'] in ["transcription", "exa_content"]) and
                 (artifact['generator_id'] in ['en', 'en-GB'])):
                 transcript = artifact['content']

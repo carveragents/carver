@@ -95,12 +95,14 @@ class ArtifactManager:
         errors = []
         newartifacts = False
         completelist = set()
+        postmap = {}
         created = []
         now = datetime.utcnow().isoformat()
 
         for idx, post in enumerate(posts):
             existing_artifacts = post['artifacts']
             post_id = post['id']
+            postmap[post_id] = post # note this...
             for artifact_data in existing_artifacts:
                 completelist.add((post['id'], spec['id'],
                                   artifact_data['generator_name'],
@@ -122,7 +124,7 @@ class ArtifactManager:
                     artifacts_data = [artifacts_data]
 
                 if len(artifacts_data) == 0:
-                    print(f"[{idx}] Skipping. No artifacts need to be created")
+                    print(f"[{idx}] {post_id} Spec {spec['id']} Skipping. No artifacts need to be created")
                     continue
 
                 for artifact_data in artifacts_data:
@@ -173,6 +175,9 @@ class ArtifactManager:
                         'created_at':      now,
                         'updated_at':      now,
                     }
+
+                    # print(artifact['content'])
+
                     artifacts_to_create.append(artifact)
                     newartifacts = True
                     print(f"[{idx}] Adding", rec, "Total", len(artifacts_to_create))
@@ -183,11 +188,17 @@ class ArtifactManager:
                         inc_created = self.db.artifact_bulk_create(artifacts_to_create)
                         created += inc_created
                         print(f"[posts: {idx}] Created {len(inc_created)}")
+
+                        #print(json.dumps(inc_created[0], indent=4))
+
+                        # Update the artifacts...
+                        for a in artifacts_to_create:
+                            postmap[a['post_id']]['artifacts'].append(a)
+
                         artifacts_to_create = []
                         if delay > 0:
                             time.sleep(delay)
                         newartifacts = False
-
             except Exception as e:
                 traceback.print_exc()
                 errors.append(f"Error processing post {post_id}: {str(e)}"[:100])
