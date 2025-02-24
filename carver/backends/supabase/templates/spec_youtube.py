@@ -1,7 +1,9 @@
 summary_prompt = """
 The content is from one or more presentations.
 
-Give me an exhaustive granular summary of each session (could be one or more):
+Give me an exhaustive granular summary of each session (could be one
+or more):
+
 
 (a) Pain points identified
 (b) Key insights about the pain points
