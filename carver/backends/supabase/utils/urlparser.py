@@ -19,7 +19,9 @@ class SourceURLParser:
     """Parse various URLs to extract source information with rich metadata"""
 
     YOUTUBE_PATTERNS = {
-        'channel': r'(?:https?:\/\/)?(?:www\.)?youtube\.com\/(?:c\/|channel\/|user\/)?([a-zA-Z0-9_-]+)',
+        # Handle all YouTube channel URL formats including @handles
+        # Define the improved regex pattern to handle both cases
+        'channel': r'(?:https?:\/\/)?(?:www\.)?youtube\.com\/(?:@|c\/|channel\/|user\/)?([a-zA-Z0-9_.-]+)(?:\/.*)?$',
         'playlist': r'(?:https?:\/\/)?(?:www\.)?youtube\.com\/(?:playlist\?list=|watch\?v=[a-zA-Z0-9_-]+&list=)([a-zA-Z0-9_-]+)',
         'search': r'(?:https?:\/\/)?(?:www\.)?youtube\.com\/results\?(?:[^&]*&)*search_query=([^&]+)'
     }
@@ -80,21 +82,20 @@ class SourceURLParser:
             logger.error(f"Error parsing URL {url}: {str(e)}")
             return None
 
+
+
     @classmethod
     def _parse_youtube(cls, url: str, parsed_url: urlparse) -> Optional[Dict]:
         """Parse YouTube URLs with rich metadata"""
         if 'youtube.com' not in parsed_url.netloc:
             return None
 
+        # Handle search URLs
         if '/results' in url:
             try:
-                # Parse query parameters
                 query_params = parse_qs(parsed_url.query)
-
                 if 'search_query' in query_params:
                     search_query = query_params['search_query'][0]
-
-                    # Build search config
                     search_config = {
                         'type': 'search',
                         'query': search_query,
@@ -119,10 +120,16 @@ class SourceURLParser:
                 logger.error(f"YouTube search parsing error: {str(e)}")
                 return None
 
-        # Try parsing as channel
-        if '/channel/' in url or '/c/' in url or '/user/' in url:
+        # Handle channel URLs
+        channel_match = re.match(cls.YOUTUBE_PATTERNS['channel'], url)
+        if channel_match:
             try:
-                channel = Channel(url)
+                # Clean up the URL by removing trailing paths
+                base_url = url.split('/videos')[0].split('/featured')[0].split('/about')[0]
+                if base_url.endswith('/'):
+                    base_url = base_url[:-1]
+
+                channel = Channel(base_url)
                 channel_info = {
                     'platform': 'YOUTUBE',
                     'source_type': 'CHANNEL',
@@ -138,7 +145,7 @@ class SourceURLParser:
                     }
                 }
 
-                # Try to get channel description and other metadata
+                # Try to get additional channel metadata if available
                 if hasattr(channel, 'initial_data'):
                     channel_info['description'] = channel.initial_data.get('description', '')
                     channel_info['config'].update({
@@ -148,40 +155,35 @@ class SourceURLParser:
 
                 return channel_info
             except Exception as e:
-                logger.error(f"YouTube channel parsing error: {str(e)}")
+                logger.error(f"YouTube channel parsing error for {url}: {str(e)}")
+                traceback.print_exc()
                 return None
 
-        # Try parsing as playlist
+        # Handle playlist URLs
         playlist_match = re.search(cls.YOUTUBE_PATTERNS['playlist'], url)
         if playlist_match:
             try:
-                # Extract the playlist ID from either format
                 playlist_id = playlist_match.group(1)
-
-                # Construct canonical playlist URL
                 playlist_url = f'https://www.youtube.com/playlist?list={playlist_id}'
-
                 playlist = Playlist(playlist_url)
 
                 try:
                     title = playlist.title
                 except:
-                    title = "Playlist {playlist_id}"
+                    title = f"Playlist {playlist_id}"
 
                 try:
                     description = playlist.description
                 except:
                     description = ""
 
-                # Sometimes playlist title might not be immediately available
-                # In such cases, try to fetch it from the first video
+                # Try to get playlist info from first video if title is missing
                 if not title and playlist.video_urls:
                     try:
                         first_video = YouTube(playlist.video_urls[0])
                         title = first_video.playlist_title or f"Playlist: {playlist_id}"
                         description = first_video.playlist_description or ""
                     except Exception as e:
-                        traceback.print_exc()
                         logger.warning(f"Error fetching playlist details from video: {str(e)}")
                         title = f"Playlist: {playlist_id}"
                         description = ""
@@ -192,7 +194,7 @@ class SourceURLParser:
                     'name': title,
                     'description': description,
                     'source_identifier': playlist_id,
-                    'url': playlist_url,  # Use canonical URL
+                    'url': playlist_url,
                     'config': {
                         'type': 'playlist',
                         'playlist_id': playlist_id,
@@ -205,8 +207,8 @@ class SourceURLParser:
                     }
                 }
             except Exception as e:
-                traceback.print_exc()
                 logger.error(f"YouTube playlist parsing error: {str(e)}")
+                traceback.print_exc()
                 return None
 
         return None

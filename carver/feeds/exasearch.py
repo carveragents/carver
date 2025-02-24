@@ -83,10 +83,12 @@ class ExaSearchReader(ExaReader):
         if 'category' in self.source['config']:
             extra['category'] = self.source['config']['category']
 
+        _type = self.source['config'].get('type', 'neural')
+        print("_type", _type)
         try:
             response = self.exa.search(
                 query,
-                type="neural",  # Use neural search as specified
+                type=_type,
                 start_published_date=start_date.isoformat(),
                 end_published_date=end_date.isoformat(),
                 num_results=max_results,

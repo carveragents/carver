@@ -340,3 +340,66 @@ def show(ctx, id: int, output_format: str):
         traceback.print_exc()
         click.echo(f"Error retrieving artifact: {str(e)}", err=True)
 
+
+@artifact.command()
+@click.option('--id', required=True, type=int, help='Artifact ID to dump')
+@click.option('--output', '-o', type=click.Path(), help='Output file path')
+@click.option('--include-metadata/--no-metadata', default=False,
+              help='Include artifact metadata in output')
+@click.pass_context
+def dump(ctx, id: int, output: Optional[str], include_metadata: bool):
+    """Dump the content of a specific artifact to a file or stdout."""
+    db = ctx.obj['supabase'].client
+    try:
+        # Fetch single artifact with related data
+        response = db.table('carver_artifact') \
+            .select("*, carver_post(*), carver_artifact_specification(*)") \
+            .eq('id', id) \
+            .single() \
+            .execute()
+
+        if not response.data:
+            click.echo(f"No artifact found with ID {id}", err=True)
+            return
+
+        art = response.data
+
+        # Prepare the output content
+        output_content = ""
+
+        if include_metadata:
+            # Add metadata header if requested
+            metadata = [
+                f"Artifact ID: {art['id']}",
+                f"Specification: {art['carver_artifact_specification']['name']}",
+                f"Post: {art['carver_post']['name']} (ID: {art['post_id']})",
+                f"Type: {art['artifact_type']}",
+                f"Generator: {art['generator_name']}:{art['generator_id']}",
+                f"Title: {art['title']}",
+                f"Status: {art['status']}",
+                f"Version: {art['version']}",
+                f"Created: {format_datetime(art['created_at'])}",
+                f"Updated: {format_datetime(art['updated_at'])}",
+                "="* 80,  # Separator line
+                ""  # Empty line before content
+            ]
+            output_content = "\n".join(metadata) + "\n"
+
+        # Add the main content
+        output_content += art['content']
+
+        # Write to file if output path specified, otherwise print to stdout
+        if output:
+            # Ensure the output directory exists
+            output_path = Path(output)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(output_content)
+            click.echo(f"Successfully dumped artifact content to {output}")
+        else:
+            click.echo(output_content)
+
+    except Exception as e:
+        traceback.print_exc()
+        click.echo(f"Error dumping artifact: {str(e)}", err=True)
