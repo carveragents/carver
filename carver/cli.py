@@ -4,8 +4,16 @@ import logging
 
 import click
 
-from .backends.supabase.cli import sb
-from .generators.cli import generator
+
+try:
+    # Relative import for when run as a module
+    from .backends.supabase.cli import sb
+    from .generators.cli import generator
+except ImportError:
+    # Fallback to absolute import for direct script execution
+    from backends.supabase.cli import sb
+    from generators.cli import generator
+
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 

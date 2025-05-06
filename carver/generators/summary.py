@@ -10,7 +10,10 @@ from datetime import datetime
 from carver.utils import flatten
 
 from .base import BaseArtifactGenerator
-from ..llm import *
+try:
+    from ..llm import *
+except ImportError:
+    from llm import *
 
 logger = logging.getLogger(__name__)
 
