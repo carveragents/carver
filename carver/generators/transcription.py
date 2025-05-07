@@ -38,8 +38,8 @@ class TranscriptionGenerator(BaseArtifactGenerator):
                 continue
             seen.append(lang)
             textlist = transcript.fetch()
-            duration = sum([line['duration'] for line in textlist])
-            text = ' '.join([line['text'] for line in textlist])
+            duration = sum([line.duration for line in textlist])
+            text = ' '.join([line.text for line in textlist])
             print(f"[{self.name} {youtube_id}] Found", youtube_id, lang, text[:10])
             transcripts.append({
                 "generator_name": "transcription",
