@@ -44,6 +44,22 @@ Support for autocomplete
 eval "$(_CARVER_RUN_COMPLETE=bash_source carver-run)"
 ```
 
+### Project Management
+```bash
+ carver-run sb project add --name="{NAME}" --owner="{OWNER}" --project-type="{PROJECT_TYPE}"
+
+ carver-run sb source add --project-id {PROJECT_ID} --url "https://www.youtube.com/watch?v=YoqH1XbeC10" --name {TITLE} 
+
+ carver-run sb source sync-posts 1
+
+ carver-run sb source activate 1
+ 
+ carver-run sb spec add-from-template --source-id 1 --template spec_youtube
+
+ carver-run sb artifact bulk-generate --source-id 1 
+
+```
+
 ### Entity Management
 
 ```bash
