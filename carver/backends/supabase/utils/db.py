@@ -773,6 +773,7 @@ class SupabaseClient:
                         modified_after: Optional[datetime] = None,
                         created_since: Optional[datetime] = None,
                         updated_since: Optional[datetime] = None,
+                        published_after: Optional[datetime] = None,
                         artifact_ids: Optional[List[int]] = None,
                         limit: int = 100,
                         offset: int = 0,
@@ -789,6 +790,7 @@ class SupabaseClient:
             format: Filter by format
             language: Filter by language
             modified_after: Filter by modification date
+            published_after: Filter by published date
             created_since: Filter by creation date
             updated_since: Filter by update date
             artifact_ids: Filter by specific artifact IDs
@@ -804,12 +806,16 @@ class SupabaseClient:
                 if 'carver_artifact_specification' not in field_list:
                     field_list.append('carver_artifact_specification(id, name)')
                 if 'carver_post' not in field_list:
-                    field_list.append('carver_post(id, name, title, content_identifier)')
+                    field_list.append('carver_post(id, name, author, title, content_identifier)')
                 select_statement = ', '.join(field_list)
             else:
-                select_statement = '*, carver_artifact_specification!inner(*), carver_post!inner(name, title, description, content_type, content_identifier, url)'
+                select_statement = '*, carver_artifact_specification!inner(*), carver_post!inner(name, title, author, description, content_type, content_identifier, url, published_at)'
 
             query = self.client.table('carver_artifact').select(select_statement)
+
+            # Filter
+            query = query.eq('carver_post.active', True)
+            query = query.eq('carver_artifact_specification.active', True)
 
             if spec_id:
                 query = query.eq('spec_id', spec_id)
@@ -820,6 +826,7 @@ class SupabaseClient:
             if status:
                 query = query.eq('status', status)
             if active is not None:
+                print("active")
                 query = query.eq('active', active)
             if format:
                 query = query.eq('format', format)
@@ -836,6 +843,8 @@ class SupabaseClient:
                 query = query.gte('updated_at', updated_since.isoformat())
             if modified_after:
                 query = query.gte('updated_at', modified_after.isoformat())
+            if published_after:
+                query = query.gte('carver_post.published_at', published_after.isoformat())
             if artifact_ids:
                 query = query.in_('id', artifact_ids)
 
@@ -843,7 +852,8 @@ class SupabaseClient:
             query = query.order('created_at', desc=True).range(offset, offset + limit - 1)
 
             result = query.execute()
-            return result.data
+            data = result.data
+            return data
 
         except Exception as e:
             logger.error(f"Error in artifact search: {str(e)}")

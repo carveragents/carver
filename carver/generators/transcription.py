@@ -37,7 +37,14 @@ class TranscriptionGenerator(BaseArtifactGenerator):
                 print(f"[{self.name} {youtube_id}] Skipping", lang, "not in ", languages)
                 continue
             seen.append(lang)
-            textlist = transcript.fetch()
+            transcriptobj = transcript.fetch()
+            textlist = [
+                {
+                    "duration": snippet.duration,
+                    "text": snippet.text,
+                } for snippet in transcriptobj.snippets
+            ]
+
             duration = sum([line['duration'] for line in textlist])
             text = ' '.join([line['text'] for line in textlist])
             print(f"[{self.name} {youtube_id}] Found", youtube_id, lang, text[:10])

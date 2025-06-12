@@ -23,6 +23,8 @@ class PostManager:
         Returns tuple of (posts_added, posts_updated)
         """
 
+        print("sync_posts", max_results)
+
         now = datetime.utcnow().isoformat()
 
         # Get source information
@@ -52,13 +54,14 @@ class PostManager:
         # Read feed
         new_posts = reader.read()
 
+        print("new_posts", len(new_posts))
         # Split into updates and creates
         to_create = []
         to_update = []
 
         seen = {}
 
-        for post in new_posts:
+        for idx, post in enumerate(new_posts):
 
             if 'created_at' not in post:
                 post['created_at'] = now
@@ -75,6 +78,7 @@ class PostManager:
             # Ensure that there are no duplicates
             content_id = post['content_identifier']
             if content_id in seen:
+                print(idx, "Duplicate", content_id)
                 continue
             seen[content_id] = 1
 
@@ -82,7 +86,9 @@ class PostManager:
             if 'author' in post and post['author'] and len(post['author']) > 255:
                 post['author'] = post['author'][:255]
 
+            print(idx, "content_id", content_id)
             if content_id in existing_map:
+                print("in existing_map")
                 d1 = dateparser.parse(post['published_at'])
                 d2 = dateparser.parse(existing_map[content_id]['published_at'])
                 change = ((post['title'] != existing_map[content_id]['title']) or

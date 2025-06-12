@@ -71,6 +71,18 @@ def bulk_generate(ctx, spec_id: int, source_id: int, last: Optional[str], genera
         if not source_id:
             source_id = specs[0]['source_id']
 
+        click.echo(f"Found {len(specs)} active specifications")
+
+        # Sort specifications by dependencies
+        try:
+            sorted_specs_ids = topological_sort(specs)
+        except ValueError as e:
+            click.echo(f"Error in dependency resolution: {str(e)}", err=True)
+            return
+
+        # Create a map of spec ID to spec data
+        spec_map = {spec['id']: spec for spec in specs}
+
         # Get posts needing artifacts
         time_filter = parse_date_filter(last) if last else None
         posts = db.post_search_with_artifacts(
@@ -86,8 +98,13 @@ def bulk_generate(ctx, spec_id: int, source_id: int, last: Optional[str], genera
 
         click.echo(f"Found {len(posts)} posts to process for artifact generation")
 
-        # Process each specification
-        for spec in specs:
+        for spec_id in sorted_specs_ids:
+            if spec_id not in spec_map:
+                continue
+
+            spec = spec_map[spec_id]
+            click.echo(f"\nProcessing Specification [{spec_id}] {spec['name']}")
+
             if ((generator_name is not None) and
                 (spec['config'].get('generator') != generator_name)):
                 continue
@@ -112,7 +129,7 @@ def bulk_generate(ctx, spec_id: int, source_id: int, last: Optional[str], genera
 @click.option('--active/--inactive', default=True, help='Filter by active status')
 @click.option('--last', type=str, help='Filter by time window (e.g. "1d", "2h", "30m")')
 @click.option('--offset', default=0, type=int, help='Offset for search results')
-@click.option('--limit', default=50, type=int, help='Maximum number of posts to fetch')
+@click.option('--limit', default=100, type=int, help='Maximum number of posts to fetch')
 @click.option('--format', 'output_format',
               type=click.Choice(['table', 'grid', 'pipe', 'orgtbl', 'rst', 'mediawiki', 'html']),
               default='table',
@@ -130,6 +147,7 @@ def search(ctx, spec_id: Optional[int], post_id: Optional[int],
     """Search artifacts with optional data dump."""
     db = ctx.obj['supabase']
     try:
+
         # Parse time window if provided
         time_filter = parse_date_filter(last) if last else None
 
@@ -140,6 +158,7 @@ def search(ctx, spec_id: Optional[int], post_id: Optional[int],
             status=status,
             active=active,
             modified_after=time_filter,
+            published_after=time_filter,
             offset=offset,
             limit=limit
         )
@@ -155,6 +174,8 @@ def search(ctx, spec_id: Optional[int], post_id: Optional[int],
                 'id': art['id'],
                 'specification': art['carver_artifact_specification']['name'],
                 'post_id': art['post_id'],
+                "author": art['carver_post']['author'],
+                'published_at': art['carver_post']['published_at'],
                 'post_name': art['carver_post']['name'],
                 'post_description': art['carver_post']['description'],
                 'post_url': art['carver_post']['url'],
