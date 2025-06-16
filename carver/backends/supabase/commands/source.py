@@ -149,12 +149,14 @@ def add_with_template(ctx, project_id: int, template_name: str,
 @click.option('--platform', type=click.Choice(PLATFORM_CHOICES))
 @click.option('--source-type', type=click.Choice(SOURCE_TYPE_CHOICES))
 @click.option('--source-identifier', help='New source identifier')
+@click.option('--project-id', required=True, type=int, help='ID of the parent project')
 @click.option('--url', help='New URL')
 @click.option('--config', help='New JSON configuration')
 @click.option('--metadata', help='JSON metadata to update/add')
 @click.pass_context
 def update(ctx, source_id: int, activate: bool, deactivate: bool,
            name: Optional[str], description: Optional[str],
+           project_id: Optional[int],
            platform: Optional[str], source_type: Optional[str],
            source_identifier: Optional[str], url: Optional[str],
            config: Optional[str], metadata: Optional[str]):
@@ -178,6 +180,8 @@ def update(ctx, source_id: int, activate: bool, deactivate: bool,
             update_data['description'] = description
         if platform:
             update_data['platform'] = platform.strip().upper()
+        if project_id:
+            update_data['project_id'] = project_id
         if source_type:
             update_data['source_type'] = source_type.strip().upper()
         if source_identifier:
@@ -185,7 +189,10 @@ def update(ctx, source_id: int, activate: bool, deactivate: bool,
         if url:
             update_data['url'] = url
         if config:
-            update_data['config'] = json.loads(config)
+            try:
+                update_data['config'] = json.load(open(config))
+            except:
+                update_data['config'] = json.loads(config)
 
         source = db.source_update(source_id, update_data)
 

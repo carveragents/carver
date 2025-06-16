@@ -134,11 +134,11 @@ def show(ctx, name: str, output_format: str):
 @click.option('--name', required=True, help='Name for the new generator')
 @click.option('--output', type=click.Path(), help='Output file path (defaults to stdout)')
 @click.pass_context
-def sample(ctx, name: str, output: Optional[str]):
-    """Generate a sample generator class template."""
+def new(ctx, name: str, output: Optional[str]):
+    """Generate a generator class template."""
 
-    output = open(os.path.join(thisdir, 'sample.py')).read()
-    output = output.replace("__NAME__", name.capitalize())
+    sample = open(os.path.join(thisdir, 'sample.py')).read()
+    sample = sample.replace("__NAME__", name.capitalize())
     if output:
         # Write to file
         try:

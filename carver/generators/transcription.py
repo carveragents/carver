@@ -7,16 +7,28 @@ from datetime import datetime
 from abc import ABC, abstractmethod
 
 from youtube_transcript_api import YouTubeTranscriptApi
+from exa_py import Exa
+from exa_py.api import Result
+
+from carver.utils import get_config, SafeEncoder
 
 from .base import BaseArtifactGenerator
 
 class TranscriptionGenerator(BaseArtifactGenerator):
     """Generates transcription artifacts from audio/video"""
+
     name = "transcription"
     description = "Extracts and processes transcriptions from audio/video content"
-    supported_platforms = ['YOUTUBE']
+    supported_platforms = ['YOUTUBE', 'EXA', 'RSS']
     supported_source_types = ['FEED', 'PLAYLIST', 'CHANNEL']
     required_config = ['languages']
+
+    def __init__(self):
+        super().__init__()
+        api_key = get_config()('EXA_API_KEY')
+        if not api_key:
+            raise ValueError("Exa API key not found in config")
+        self.exa = Exa(api_key=api_key)
 
     def get_transcripts(self, youtube_id, languages=['en', 'en-GB']) -> Dict[str, Any]:
         """
@@ -128,6 +140,38 @@ class TranscriptionGenerator(BaseArtifactGenerator):
 
         return transcripts
 
+    def generate_rss(self, post: Dict[str, Any], config: Dict[str, Any], existing: List[Dict[str, Any]]) -> Dict[str, Any]:
+
+        url = post['url']
+
+        result = self.exa.get_contents([url], text=True)
+        if not result.results:
+            raise Exception(f"No content found for {url}")
+
+        body = result.results[0]
+        content = post['content'] + "\n" + body.text
+
+        transcripts= [{
+            "generator_name": "transcription",
+            "generator_id": "en",
+            "title": post['title'],
+            "description": post['description'],
+            "content": content,
+            "language": "en",
+            "format": "text",
+            "status": "draft",
+            "artifact_type": "TRANSCRIPTION",
+            "analysis_metadata": {
+                "word_count": len(body.text.split()),
+                "source_url": body.url,
+                "author": body.author,
+                "published_date": body.published_date,
+                "length": len(content)
+            }
+        }]
+
+        return transcripts
+
 
     def generate(self, post: Dict[str, Any],
                  spec: Dict[str, Any],
@@ -140,5 +184,7 @@ class TranscriptionGenerator(BaseArtifactGenerator):
             return self.generate_youtube(post, config, existing)
         elif source['platform'].upper() in ['EXA']:
             return self.generate_exa(post, config, existing)
+        elif source['platform'].upper() in ['RSS']:
+            return self.generate_rss(post, config, existing)
         else:
             raise Exception(f"Unknown platform: {source['platform']}")

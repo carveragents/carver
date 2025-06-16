@@ -40,8 +40,11 @@ class ArtifactManager:
         if not generatorobj.validate_config(source, data):
             raise ValueError(f"Invalid configuration for {generator} generator")
 
+        now = datetime.utcnow().isoformat()
         create_data = {
             'active': True,  # Default value
+            'created_at': now,
+            'updated_at': now,
             **data  # Allow override from input data
         }
 

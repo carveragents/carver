@@ -6,24 +6,27 @@ def get_config(raw: bool = False, show: bool = False):
         num_results = 20
         _id = "LLM2"
         days = 3
+        template_default = f"""I am looking for technical articles, papers, and posts related to {area} discussing the following topics:"""
+        template = template_default
 
         if show:
             print("ID:", _id)
             print("Area:", area)
-            print("Topics:", topics)
+            print("Topics:", template, topics)
             print("Num Results:", num_results)
             print("Days:", days)
     else:
         _id = input("Give an ID:")
         area = input("Area: ")
+        template_default = f"""I am looking for technical articles, papers, and posts related to {area} discussing the following topics:"""
+        template = input(f"Template: {template_default}")
+        if template.strip() == "":
+            template = template_default
         topics = input("Topics separated by comma: ")
         num_results = input("Num results: ")
         num_results = int(num_results)
         days = input("Window (days): ")
         days = int(days)
-
-    #template = f"""I am looking for technical articles, papers, and posts related to {area} discussing the following topics:"""
-    template = ""
 
     topics = [t.strip() for t in topics.split(",")]
     query = template + ', '.join([f'"{topic}"' for topic in topics])
@@ -43,7 +46,7 @@ def get_config(raw: bool = False, show: bool = False):
                 "url": "https://exa.ai",
                 "config": {
                     "query": query,
-                    "type": "keyword",
+                    "type": "neural",
                     "num_results": num_results,
                     "category": "blogs",
                     "date_filter": f"{days}d"

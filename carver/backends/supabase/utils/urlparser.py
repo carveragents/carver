@@ -375,6 +375,7 @@ class SourceURLParser:
         """Parse standard RSS feeds"""
         try:
             feed = feedparser.parse(url)
+            parser = self._parse_rss
 
             if feed.get('feed') and feed.feed.get('title'):
                 # Check if it's already been identified as a podcast
